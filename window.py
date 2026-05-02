@@ -1,5 +1,4 @@
-# Janela principal do widget — layout, arraste, redimensionamento e loops de atualização
-# Main widget window — layout, drag, resize and update loops
+# Janela principal do widget — layout e loops de atualização
 import gi
 gi.require_version("Gtk", "3.0")
 gi.require_version("GdkPixbuf", "2.0")
@@ -14,7 +13,7 @@ import os
 import sys
 from pathlib import Path
 
-from config import LARGURA, MARGEM_DIREITA, MARGEM_TOPO, TAMANHO_CAPA, BORDA_RESIZE, LARGURA_MINIMA, ALTURA_MINIMA
+from config import LARGURA, MARGEM_DIREITA, TAMANHO_CAPA
 from config import ATUALIZAR_CLIMA_SEG, ATUALIZAR_SPOTIFY_SEG
 from config import (
     ICONE_SPOTIFY, TEXTO_TOCANDO, TEXTO_PAUSADO, PREFIXO_PAUSADO, TEXTO_SEM_SPOTIFY,
@@ -32,7 +31,6 @@ from spectrum import AudioSpectrum
 
 log = logging.getLogger("widget")
 
-# Força locale português para nomes de dia/mês em strftime
 for _loc in ("pt_BR.UTF-8", "pt_BR", "pt_PT.UTF-8", "pt_PT", ""):
     try:
         locale.setlocale(locale.LC_TIME, _loc)
@@ -40,54 +38,39 @@ for _loc in ("pt_BR.UTF-8", "pt_BR", "pt_PT.UTF-8", "pt_PT", ""):
     except locale.Error:
         continue
 
+
 def _parsear_cores_espectro():
-    """Converte as 3 cores base do config para tuplas (r,g,b) usadas pelo Cairo."""
     def _hex(c):
         h = c.lstrip("#")
-        return int(h[0:2],16)/255, int(h[2:4],16)/255, int(h[4:6],16)/255
+        return int(h[0:2], 16) / 255, int(h[2:4], 16) / 255, int(h[4:6], 16) / 255
     return _hex(COR_BASE), _hex(COR_TEXTO), _hex(COR_DESTAQUE)
 
 
-# Cursores do mouse para cada zona de arraste
-_CURSORES_ZONA = {
-    'N':  'n-resize',  'S':  's-resize',
-    'E':  'e-resize',  'W':  'w-resize',
-    'NE': 'ne-resize', 'NW': 'nw-resize',
-    'SE': 'se-resize', 'SW': 'sw-resize',
-    'mover': 'grab',
-}
+def _sessao_cosmic() -> bool:
+    blob = (
+        os.environ.get("XDG_CURRENT_DESKTOP", "")
+        + " "
+        + os.environ.get("XDG_SESSION_DESKTOP", "")
+    ).upper()
+    return "COSMIC" in blob
 
 
 class WidgetDesktop(Gtk.Window):
     def __init__(self):
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
-        self._url_capa_atual   = None
-        self._ls               = None   # referência ao GtkLayerShell quando ativo
-        self._pos_x            = 0     # posição X atual do widget na tela
-        self._pos_y            = 0     # posição Y atual do widget na tela
-        self._spotify_ocupado  = False  # evita threads simultâneas de busca do Spotify
+        self._url_capa_atual  = None
+        self._ls              = None
+        self._pos_x           = 0
+        self._pos_y           = 0
+        self._spotify_ocupado = False
+        self._altura_atual    = 800
+        self._espectro        = AudioSpectrum()
+        self._cal_dia         = -1
+        self._cores_espectro  = _parsear_cores_espectro()
 
-        # Estado de arraste (mover ou redimensionar)
-        self._drag_ativo  = False
-        self._drag_tipo   = None  # 'mover' | 'N' | 'S' | 'E' | 'W' | 'NE' | etc.
-        self._drag_ini_x  = 0    # posição X do mouse (local à superfície) ao iniciar o arraste
-        self._drag_ini_y  = 0    # posição Y do mouse (local à superfície) ao iniciar o arraste
-        self._drag_ini_w  = 0    # largura do widget ao iniciar o arraste
-        self._drag_ini_h  = 0    # altura do widget ao iniciar o arraste
-        self._drag_ini_px = 0    # posição X do widget ao iniciar o arraste
-        self._drag_ini_py = 0    # posição Y do widget ao iniciar o arraste
-        self._altura_atual   = 800
-        self._espectro       = AudioSpectrum()
-        self._cal_dia        = -1
-        self._cores_espectro = _parsear_cores_espectro()
-
-        # Hot reload — rastreia mtimes dos arquivos de config
-        # Hot reload — tracks mtimes of config files
         _cfg = Path(__file__).parent / "config"
-        self._config_arquivos = [
-            p for p in _cfg.glob("*.py") if not p.name.startswith("_")
-        ]
-        self._config_mtimes = {p: p.stat().st_mtime for p in self._config_arquivos}
+        self._config_arquivos = [p for p in _cfg.glob("*.py") if not p.name.startswith("_")]
+        self._config_mtimes   = {p: p.stat().st_mtime for p in self._config_arquivos}
 
         self._aplicar_css()
         self._configurar_janela()
@@ -107,94 +90,97 @@ class WidgetDesktop(Gtk.Window):
 
     def _configurar_janela(self):
         self.set_title("")
-        self.set_decorated(False)  # sem barra de título
-        self.set_resizable(True)   # necessário para self.resize() funcionar
+        self.set_decorated(False)
+        self.set_resizable(False)
 
-        # Transparência: define visual RGBA para cantos arredondados funcionarem
         tela   = self.get_screen()
         visual = tela.get_rgba_visual()
         if visual and tela.is_composited():
             self.set_visual(visual)
         self.set_app_paintable(True)
         self.connect("draw", self._desenhar_fundo)
-        self.connect("window-state-event", self._bloquear_maximizar)
+        self.connect_after("realize", self._ao_realizar)
 
-        # Calcula posição inicial: canto superior direito da tela
         display = Gdk.Display.get_default()
         monitor = display.get_primary_monitor() or display.get_monitor(0)
         geo     = monitor.get_geometry()
+        self._monitor_geo = geo
         self._pos_x = geo.x + geo.width - LARGURA - MARGEM_DIREITA
-        self._pos_y = geo.y + MARGEM_TOPO
+        self._pos_y = geo.y + (geo.height - self._altura_atual) // 2
 
-        # Tenta usar gtk-layer-shell (Wayland) para fixar no desktop de verdade
         if self._ativar_layer_shell():
-            log.warning("gtk-layer-shell ativo — widget fixo no desktop (Wayland)")
+            log.info("gtk-layer-shell ativo (Wayland)")
         else:
-            # Fallback para X11 ou Wayland sem layer-shell instalado
             self.set_keep_below(True)
             self.set_skip_taskbar_hint(True)
             self.set_skip_pager_hint(True)
             self.stick()
             self.move(self._pos_x, self._pos_y)
 
+    def _ao_realizar(self, *_args):
+        GLib.idle_add(self._aplicar_input_shape)
+
+    def _aplicar_input_shape(self):
+        if not self._ls:
+            return False
+        gw = self.get_window()
+        if gw:
+            try:
+                gw.merge_child_input_shapes()
+            except Exception as e:
+                log.debug("input shape: %s", e)
+        return False
+
     def _desenhar_fundo(self, _widget, cr):
-        """Limpa o fundo da janela para transparente.
-        IMPORTANTE: deve retornar False para o GTK continuar desenhando os filhos."""
         cr.set_source_rgba(0, 0, 0, 0)
         try:
             import cairo
             cr.set_operator(cairo.OPERATOR_SOURCE)
         except ImportError:
-            cr.set_operator(1)  # cairo.OPERATOR_SOURCE
+            cr.set_operator(1)
         cr.paint()
         return False
 
-    def _bloquear_maximizar(self, _widget, evento):
-        """Reverte imediatamente qualquer tentativa de maximizar ou ir a tela cheia."""
-        estado = evento.new_window_state
-        if estado & Gdk.WindowState.MAXIMIZED:
-            self.unmaximize()
-        if estado & Gdk.WindowState.FULLSCREEN:
-            self.unfullscreen()
-
     def _ativar_layer_shell(self):
-        """Configura a janela como widget de desktop via Wayland Layer Shell.
-        Posicionamento livre via margens TOP+LEFT — permite mover para qualquer lugar.
-        Retorna True se conseguiu, False caso a biblioteca não esteja instalada."""
         try:
             gi.require_version("GtkLayerShell", "0.1")
             from gi.repository import GtkLayerShell
 
             self._ls = GtkLayerShell
             GtkLayerShell.init_for_window(self)
+            if hasattr(GtkLayerShell, "set_namespace"):
+                GtkLayerShell.set_namespace(self, "desktop-widget")
             GtkLayerShell.set_layer(self, GtkLayerShell.Layer.BOTTOM)
             GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.TOP,  True)
             GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.LEFT, True)
             GtkLayerShell.set_margin(self, GtkLayerShell.Edge.TOP,  max(0, self._pos_y))
             GtkLayerShell.set_margin(self, GtkLayerShell.Edge.LEFT, max(0, self._pos_x))
             GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
+            if hasattr(GtkLayerShell, "set_exclusive_zone"):
+                GtkLayerShell.set_exclusive_zone(self, 0)
             return True
         except Exception:
             self._ls = None
             return False
 
     def _inicializar_altura(self, _widget):
-        """Agenda medição no próximo idle — garante que CSS e layout estão prontos."""
         GLib.idle_add(self._medir_altura_natural)
 
     def _medir_altura_natural(self):
-        """Mede a altura natural real e aplica como tamanho inicial do widget."""
         _min, nat = self._raiz.get_preferred_height()
-        h = max(ALTURA_MINIMA, nat + 20)
+        h = nat + 20
         self._altura_atual = h
         self._raiz.set_size_request(LARGURA, nat)
+        geo = self._monitor_geo
+        self._pos_y = geo.y + (geo.height - h) // 2
+        self._mover_para(self._pos_x, self._pos_y)
         self.queue_resize()
+        GLib.idle_add(self._aplicar_input_shape)
         return False
 
-    # ── Sobreescrita do GTK para controle real de altura no Wayland ──────────
+    # ── Altura exata para o Wayland ───────────────────────────────────────
 
     def do_get_preferred_height(self):
-        """Informa ao GTK/Wayland a altura exata da janela."""
         if self._altura_atual > 0:
             h = self._altura_atual
             return (h, h)
@@ -207,38 +193,24 @@ class WidgetDesktop(Gtk.Window):
         return Gtk.Window.do_get_preferred_height_for_width(self, width)
 
     def _mover_para(self, x, y):
-        """Move o widget para a posição (x, y)."""
         self._pos_x = x
         self._pos_y = y
         if self._ls:
             self._ls.set_margin(self, self._ls.Edge.LEFT, max(0, x))
             self._ls.set_margin(self, self._ls.Edge.TOP,  max(0, y))
+            self.queue_resize()
         else:
             self.move(x, y)
 
     # ── Construção da interface ───────────────────────────────────────────
 
     def _construir_ui(self):
-        # EventBox cobre toda a janela — detecta zona do clique e decide mover ou redimensionar.
-        # above_child=False: filhos (ex.: botões Spotify) recebem o clique primeiro; o arraste
-        # continua funcionando nas áreas sem janela própria ou quando o evento propaga.
-        caixa_evento = Gtk.EventBox()
-        caixa_evento.set_above_child(False)
-        caixa_evento.add_events(
-            Gdk.EventMask.BUTTON_PRESS_MASK   |
-            Gdk.EventMask.BUTTON_RELEASE_MASK |
-            Gdk.EventMask.POINTER_MOTION_MASK
-        )
-        caixa_evento.connect("button-press-event",   self._drag_press)
-        caixa_evento.connect("motion-notify-event",  self._drag_motion)
-        caixa_evento.connect("button-release-event", self._drag_release)
-
         raiz = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         raiz.get_style_context().add_class("raiz")
         raiz.set_size_request(LARGURA, -1)
         self._raiz = raiz
 
-        # ── Relógio ──────────────────────────────────────────────────────
+        # Relógio
         self.lbl_hora    = self._rotulo("hora",         "00", Gtk.Align.START)
         self.lbl_minuto  = self._rotulo("minuto",       "00", Gtk.Align.START)
         self.lbl_diasem  = self._rotulo("diaSemana",    "",   Gtk.Align.START)
@@ -255,12 +227,12 @@ class WidgetDesktop(Gtk.Window):
 
         raiz.pack_start(self._separador(), False, False, 0)
 
-        # ── Clima ────────────────────────────────────────────────────────
+        # Clima
         caixa_clima = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
         linha_temp = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.lbl_icone_clima = self._rotulo("iconeClima",       ICONE_CLIMA_PADRAO, Gtk.Align.START)
-        self.lbl_temperatura = self._rotulo("temperaturaClima", "--°C",         Gtk.Align.START)
+        self.lbl_temperatura = self._rotulo("temperaturaClima", "--°C",             Gtk.Align.START)
         linha_temp.pack_start(self.lbl_icone_clima, False, False, 0)
         linha_temp.pack_start(self.lbl_temperatura, False, False, 0)
         caixa_clima.pack_start(linha_temp, False, False, 0)
@@ -274,7 +246,7 @@ class WidgetDesktop(Gtk.Window):
         raiz.pack_start(caixa_clima, False, False, 0)
         raiz.pack_start(self._separador(), False, False, 0)
 
-        # ── Spotify ──────────────────────────────────────────────────────
+        # Spotify
         caixa_spotify = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
         linha_cabecalho = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
@@ -291,17 +263,13 @@ class WidgetDesktop(Gtk.Window):
         envoltorio_capa.pack_start(self.img_capa, False, False, 0)
         caixa_spotify.pack_start(envoltorio_capa, False, False, 8)
 
-        # Controles MPRIS: anterior, reproduzir/pausar, próxima
         linha_ctrl = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         linha_ctrl.set_halign(Gtk.Align.START)
-        self.btn_spotify_prev = self._botao_spotify(
-            ICONE_SPOTIFY_ANTERIOR, TOOLTIP_SPOTIFY_ANTERIOR)
+        self.btn_spotify_prev = self._botao_spotify(ICONE_SPOTIFY_ANTERIOR, TOOLTIP_SPOTIFY_ANTERIOR)
         self.btn_spotify_prev.connect("clicked", self._on_spotify_prev)
-        self.btn_spotify_play = self._botao_spotify(
-            ICONE_SPOTIFY_REPRODUZIR, TOOLTIP_SPOTIFY_PLAY)
+        self.btn_spotify_play = self._botao_spotify(ICONE_SPOTIFY_REPRODUZIR, TOOLTIP_SPOTIFY_PLAY)
         self.btn_spotify_play.connect("clicked", self._on_spotify_play_pause)
-        self.btn_spotify_next = self._botao_spotify(
-            ICONE_SPOTIFY_PROXIMO, TOOLTIP_SPOTIFY_PROXIMO)
+        self.btn_spotify_next = self._botao_spotify(ICONE_SPOTIFY_PROXIMO, TOOLTIP_SPOTIFY_PROXIMO)
         self.btn_spotify_next.connect("clicked", self._on_spotify_next)
         for b in (self.btn_spotify_prev, self.btn_spotify_play, self.btn_spotify_next):
             linha_ctrl.pack_start(b, False, False, 0)
@@ -312,29 +280,27 @@ class WidgetDesktop(Gtk.Window):
         self.lbl_album      = self._rotulo("albumMusica",   "", Gtk.Align.START, reticencias=True)
         self.lbl_sem_musica = self._rotulo("semMusica", TEXTO_SEM_SPOTIFY, Gtk.Align.START)
 
-        # Caixa de texto (título, artista, álbum)
         caixa_info = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         for w in (self.lbl_titulo, self.lbl_artista, self.lbl_album):
             caixa_info.pack_start(w, False, False, 0)
 
-        # Visualizador de espectro — sempre visível, linha reta quando silencioso
         self.espectro_area = Gtk.DrawingArea()
         self.espectro_area.set_size_request(95, 55)
         self.espectro_area.set_valign(Gtk.Align.CENTER)
         self.espectro_area.connect("draw", self._desenhar_espectro)
 
         linha_musica = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        linha_musica.pack_start(caixa_info,        True,  True,  0)
+        linha_musica.pack_start(caixa_info,         True,  True,  0)
         linha_musica.pack_start(self.espectro_area, False, False, 0)
 
-        caixa_spotify.pack_start(linha_musica,      False, False, 0)
+        caixa_spotify.pack_start(linha_musica,       False, False, 0)
         caixa_spotify.pack_start(self.lbl_sem_musica, False, False, 0)
 
         raiz.pack_start(caixa_spotify, False, False, 0)
 
         self.connect("map", self._inicializar_altura)
-        caixa_evento.add(raiz)
-        self.add(caixa_evento)
+        self.connect_after("map", self._pulso_superficie_wayland)
+        self.add(raiz)
 
     # ── Painel direito do relógio (progresso + calendário) ────────────────
 
@@ -343,24 +309,21 @@ class WidgetDesktop(Gtk.Window):
         painel.set_valign(Gtk.Align.CENTER)
         painel.set_size_request(95, -1)
 
-        # Linha com "Progresso do dia" + porcentagem lado a lado
         linha_prog = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         linha_prog.set_halign(Gtk.Align.END)
         if TEXTO_PROGRESSO_DIA:
-            lbl_prog_label = self._rotulo("progLabel", TEXTO_PROGRESSO_DIA, Gtk.Align.END)
-            linha_prog.pack_start(lbl_prog_label, False, False, 0)
+            linha_prog.pack_start(
+                self._rotulo("progLabel", TEXTO_PROGRESSO_DIA, Gtk.Align.END), False, False, 0)
         self.lbl_prog_pct = self._rotulo("progPct", "0%", Gtk.Align.END)
         linha_prog.pack_start(self.lbl_prog_pct, False, False, 0)
         painel.pack_start(linha_prog, False, False, 0)
 
-        # Barra de progresso
         self.barra_dia = Gtk.ProgressBar()
         self.barra_dia.get_style_context().add_class("barDia")
         self.barra_dia.set_show_text(False)
         self.barra_dia.set_fraction(0.0)
         painel.pack_start(self.barra_dia, False, False, 0)
 
-        # Grid do mini calendário
         self._cal_grid = Gtk.Grid()
         self._cal_grid.set_column_spacing(4)
         self._cal_grid.set_row_spacing(3)
@@ -376,13 +339,11 @@ class WidgetDesktop(Gtk.Window):
         agora = datetime.datetime.now()
         hoje  = agora.day
 
-        # Cabeçalhos: Seg → Dom
         for col, h in enumerate(DIAS_SEMANA):
             lbl = Gtk.Label(label=h)
             lbl.get_style_context().add_class("calHdr")
             self._cal_grid.attach(lbl, col, 0, 1, 1)
 
-        # Dias do mês (semanas começam na segunda)
         for row, semana in enumerate(calendar.monthcalendar(agora.year, agora.month)):
             for col, dia in enumerate(semana):
                 if dia == 0:
@@ -419,109 +380,25 @@ class WidgetDesktop(Gtk.Window):
         s.set_hexpand(True)
         return s
 
-    # ── Sistema de arraste (mover + redimensionar por qualquer borda/canto) ──
-
-    def _zona_do_clique(self, x, y):
-        """Detecta em qual zona do widget o clique ocorreu."""
-        w = self.get_allocated_width()
-        h = self._altura_atual if self._altura_atual > 0 else self.get_allocated_height()
-        g = BORDA_RESIZE
-        esq  = x < g
-        dir_ = x > w - g
-        top  = y < g
-        bot  = y > h - g
-        if esq and top:  return 'NW'
-        if dir_ and top: return 'NE'
-        if esq and bot:  return 'SW'
-        if dir_ and bot: return 'SE'
-        if top:  return 'N'
-        if bot:  return 'S'
-        if esq:  return 'W'
-        if dir_: return 'E'
-        return 'mover'
-
-    def _drag_press(self, widget, event):
-        """Registra início do arraste e determina a ação."""
-        if event.button != 1:
+    def _pulso_superficie_wayland(self, *_args):
+        if not self._ls:
             return
-        zona = self._zona_do_clique(event.x, event.y)
-        self._drag_ativo  = True
-        self._drag_tipo   = zona
-        # No Wayland layer-shell o GDK não atualiza a posição interna da superfície
-        # quando mudamos as margens, então event.x_root vira coordenada absoluta estável.
-        # No X11, event.x_root também é coordenada absoluta. Ambos funcionam igual aqui.
-        # O problema de startup era que event.x_root retornava 0 no primeiro clique após
-        # o autostart — event.x (local à superfície) é sempre confiável.
-        # Como no Wayland layer-shell event.x ≈ cursor_abs (surface_x=0 no GDK),
-        # event.x e event.x_root são equivalentes; usamos event.x para evitar o bug de startup.
-        if self._ls:
-            self._drag_ini_x  = event.x
-            self._drag_ini_y  = event.y
-        else:
-            self._drag_ini_x  = event.x_root
-            self._drag_ini_y  = event.y_root
-        self._drag_ini_w  = self.get_allocated_width()
-        self._drag_ini_h  = self._altura_atual if self._altura_atual > 0 else self.get_allocated_height()
-        self._drag_ini_px = self._pos_x
-        self._drag_ini_py = self._pos_y
-        widget.grab_add()
+        GLib.idle_add(self._pulso_frame)
+        GLib.timeout_add(400, self._pulso_frame)
+        if _sessao_cosmic():
+            for ms in (900, 2200, 3000, 8000):
+                GLib.timeout_add(ms, self._pulso_frame)
 
-    def _drag_motion(self, _widget, event):
-        """Move o widget ou redimensiona conforme a zona onde o arraste começou."""
-        if not self._drag_ativo:
-            zona  = self._zona_do_clique(event.x, event.y)
-            nome  = _CURSORES_ZONA.get(zona, 'default')
-            gdk_w = self.get_window()
-            if gdk_w:
-                gdk_w.set_cursor(Gdk.Cursor.new_from_name(Gdk.Display.get_default(), nome))
-            return
-
-        if self._ls:
-            dx = event.x       - self._drag_ini_x
-            dy = event.y       - self._drag_ini_y
-        else:
-            dx = event.x_root  - self._drag_ini_x
-            dy = event.y_root  - self._drag_ini_y
-        t  = self._drag_tipo
-
-        new_w = self._drag_ini_w
-        new_h = self._drag_ini_h
-        new_x = self._drag_ini_px
-        new_y = self._drag_ini_py
-
-        if t == 'mover':
-            new_x = self._drag_ini_px + int(dx)
-            new_y = self._drag_ini_py + int(dy)
-        else:
-            if 'E' in t:
-                new_w = max(LARGURA_MINIMA, self._drag_ini_w + int(dx))
-            if 'W' in t:
-                dw    = min(int(dx), self._drag_ini_w - LARGURA_MINIMA)
-                new_w = self._drag_ini_w - dw
-                new_x = self._drag_ini_px + dw
-            if 'S' in t:
-                new_h = max(ALTURA_MINIMA, self._drag_ini_h + int(dy))
-            if 'N' in t:
-                dh    = min(int(dy), self._drag_ini_h - ALTURA_MINIMA)
-                new_h = self._drag_ini_h - dh
-                new_y = self._drag_ini_py + dh
-
-        if new_w != self._drag_ini_w or new_h != self._drag_ini_h:
-            self._raiz.set_size_request(new_w, self._raiz.get_size_request()[1])
-            self._altura_atual = max(ALTURA_MINIMA, new_h)
-            self.queue_resize()
-        if new_x != self._pos_x or new_y != self._pos_y:
-            self._mover_para(new_x, new_y)
-
-    def _drag_release(self, widget, event):
-        """Finaliza o arraste ao soltar o botão do mouse."""
-        if event.button == 1:
-            self._drag_ativo = False
-            self._drag_tipo  = None
-            widget.grab_remove()
-            gdk_w = self.get_window()
-            if gdk_w:
-                gdk_w.set_cursor(None)
+    def _pulso_frame(self):
+        gw = self.get_window()
+        if gw:
+            try:
+                gw.invalidate_rect(None, True)
+            except Exception:
+                pass
+        self.queue_resize()
+        self._aplicar_input_shape()
+        return False
 
     # ── Visualizador de espectro ──────────────────────────────────────────
 
@@ -535,8 +412,7 @@ class WidgetDesktop(Gtk.Window):
         n    = len(bars)
         cor_base, cor_texto, cor_destaque = self._cores_espectro
         silencio = all(v < 0.03 for v in bars)
-
-        base = h - 0.75  # linha base na parte inferior da área
+        base = h - 0.75
 
         if silencio or n == 0:
             cr.set_source_rgba(*cor_texto, 0.20)
@@ -550,11 +426,10 @@ class WidgetDesktop(Gtk.Window):
         bar_w = max(1.0, (w - gap * (n - 1)) / n)
 
         for i, val in enumerate(bars):
-            bar_h = max(1.5, val * h)  # mínimo 1.5px para as barras ficarem na base
+            bar_h = max(1.5, val * h)
             x     = i * (bar_w + gap)
             y     = h - bar_h
 
-            # Gradiente de cor: texto apagado → texto → destaque
             if val < 0.45:
                 t = val / 0.45
                 r = cor_base[0] + (cor_texto[0] - cor_base[0]) * t
@@ -593,18 +468,14 @@ class WidgetDesktop(Gtk.Window):
 
         self._tick_spotify()
         GLib.timeout_add_seconds(ATUALIZAR_SPOTIFY_SEG, self._tick_spotify)
-        GLib.timeout_add(67, self._tick_espectro)           # ~15fps
-        GLib.timeout_add(1500, self._verificar_config)     # hot reload
+        GLib.timeout_add(67, self._tick_espectro)
+        GLib.timeout_add(1500, self._verificar_config)
 
     # ── Hot reload ───────────────────────────────────────────────────────
 
     def _verificar_config(self):
-        alterado = any(
-            p.stat().st_mtime != self._config_mtimes[p]
-            for p in self._config_arquivos
-        )
-        if alterado:
-            log.warning("Configuração alterada — reiniciando / Config changed — restarting")
+        if any(p.stat().st_mtime != self._config_mtimes[p] for p in self._config_arquivos):
+            log.warning("Configuração alterada — reiniciando")
             self._espectro.stop()
             os.execv(sys.executable, [sys.executable] + sys.argv)
         return True
@@ -618,13 +489,11 @@ class WidgetDesktop(Gtk.Window):
         self.lbl_diasem.set_text(agora.strftime("%A").upper())
         self.lbl_data.set_text(agora.strftime("%d / %B / %Y").upper())
 
-        # Progresso do dia
-        seg = agora.hour * 3600 + agora.minute * 60 + agora.second
+        seg  = agora.hour * 3600 + agora.minute * 60 + agora.second
         prog = seg / 86400
         self.lbl_prog_pct.set_text(f"{int(prog * 100)}%")
         self.barra_dia.set_fraction(prog)
 
-        # Calendário — reconstrói só quando o dia muda
         if agora.day != self._cal_dia:
             self._cal_dia = agora.day
             self._atualizar_calendario()
@@ -644,7 +513,7 @@ class WidgetDesktop(Gtk.Window):
             self.lbl_cidade.set_text(dados["cidade"])
             self.lbl_descricao.set_text(dados["descricao"])
             self.lbl_detalhe.set_text(
-                FORMATO_VENTO_UMIDADE.format(vento=dados['vento_ms'], umidade=dados['umidade'])
+                FORMATO_VENTO_UMIDADE.format(vento=dados["vento_ms"], umidade=dados["umidade"])
             )
         else:
             self.lbl_cidade.set_text(TEXTO_SEM_CONEXAO)
@@ -709,9 +578,7 @@ class WidgetDesktop(Gtk.Window):
             capa = dados["capa"]
             if capa and capa != self._url_capa_atual:
                 self._url_capa_atual = capa
-                threading.Thread(
-                    target=self._bg_capa, args=(capa,), daemon=True
-                ).start()
+                threading.Thread(target=self._bg_capa, args=(capa,), daemon=True).start()
         else:
             self.lbl_titulo.set_text("")
             self.lbl_artista.set_text("")

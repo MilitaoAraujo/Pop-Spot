@@ -26,8 +26,9 @@ Screenshot of the widget on the desktop (clock, day progress, calendar, weather,
 - Progresso do dia em porcentagem e barra / Day progress percentage and bar
 - Mini calendário do mês atual / Mini calendar of the current month
 - Clima em tempo real via wttr.in (sem chave de API) / Real-time weather via wttr.in (no API key)
-- Informações do Spotify (música, artista, álbum, capa) / Spotify info (track, artist, album, cover)
+- Informações do Spotify (música, artista, álbum, capa) e controles de mídia / Spotify info (track, artist, album, cover) and media controls
 - Visualizador de espectro de áudio ao vivo / Live audio spectrum visualizer
+- Posição fixa: direita da tela, centralizado verticalmente / Fixed position: right side, vertically centered
 - Totalmente personalizável por arquivos de configuração / Fully customizable via config files
 - Suporte a Wayland (gtk-layer-shell) e X11 / Wayland (gtk-layer-shell) and X11 support
 
@@ -103,10 +104,25 @@ Para rodar sem precisar manter o terminal aberto / To run without keeping the te
 nohup python3 ~/Documentos/widget/main.py &>/dev/null &
 ```
 
-Para iniciar automaticamente com o sistema / To start automatically with the system:
+Para iniciar **sozinho após cada login** (sem terminal) / To **auto-start after every login**:
 
 ```bash
 bash setup_autostart.sh
+```
+
+Isso instala um **serviço `systemd --user`** (`desktop-widget.service`) que chama **`launch_desktop_widget.sh`** — mais estável que só `~/.config/autostart` no COSMIC (sessão Wayland já referenciada, `Restart=on-failure`, uma única instância).
+
+This sets up a **user systemd unit** (`desktop-widget.service`) calling **`launch_desktop_widget.sh`** — more reliable than plain XDG autostart on COSMIC (Wayland session already active, `Restart=on-failure`, single instance).
+
+```bash
+# Ver log em tempo real / Live log
+journalctl --user -u desktop-widget.service -f
+
+# Reiniciar / Restart
+systemctl --user restart desktop-widget.service
+
+# Desativar / Disable
+systemctl --user disable --now desktop-widget.service
 ```
 
 ---
@@ -212,10 +228,13 @@ COR_DESTAQUE = "#888888"
 ```python
 LARGURA            = 270   # largura do widget / widget width
 MARGEM_DIREITA     = 24    # distância da borda direita / distance from right edge
-MARGEM_TOPO        = 24    # distância do topo / distance from top
 TAMANHO_CAPA       = 170   # tamanho da capa do álbum / album cover size
 TAMANHO_FONTE_HORA = 68    # tamanho da fonte do relógio / clock font size
 ```
+
+O widget é posicionado automaticamente no lado direito da tela, centralizado na vertical.
+
+The widget is automatically positioned on the right side of the screen, centered vertically.
 
 ### `config/general.py` — Intervalos / Intervals
 
@@ -230,19 +249,20 @@ ATUALIZAR_SPOTIFY_SEG = 3    # intervalo do Spotify em segundos / Spotify interv
 
 ```
 widget/
-├── main.py              # ponto de entrada / entry point
-├── window.py            # janela e layout principal / main window and layout
-├── css.py               # estilos GTK gerados dinamicamente / dynamically generated GTK styles
-├── spectrum.py          # visualizador de espectro de áudio / audio spectrum visualizer
-├── weather.py           # integração com clima / weather integration
-├── spotify.py           # integração com Spotify / Spotify integration
-├── install.sh           # instalação de dependências / dependency installer
-├── setup_autostart.sh   # configura inicialização automática / sets up autostart
+├── main.py                  # ponto de entrada / entry point
+├── window.py                # janela e layout principal / main window and layout
+├── css.py                   # estilos GTK gerados dinamicamente / dynamically generated GTK styles
+├── spectrum.py              # visualizador de espectro de áudio / audio spectrum visualizer
+├── weather.py               # integração com clima / weather integration
+├── spotify.py               # integração com Spotify / Spotify integration
+├── install.sh               # instalação de dependências / dependency installer
+├── launch_desktop_widget.sh # arranque: env Wayland/D-Bus (systemd ou manual)
+├── setup_autostart.sh       # systemd --user desktop-widget.service (login automático)
 └── config/
-    ├── personalizar.py  # cidade, textos, unidade, dias da semana / city, texts, unit, weekdays
-    ├── colors.py        # cores / colors
-    ├── layout.py        # tamanho e posição / size and position
-    └── general.py       # intervalos de atualização / update intervals
+    ├── personalizar.py      # cidade, textos, unidade, dias da semana / city, texts, unit, weekdays
+    ├── colors.py            # cores / colors
+    ├── layout.py            # tamanho e posição / size and position
+    └── general.py           # intervalos de atualização / update intervals
 ```
 
 ---

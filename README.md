@@ -248,3 +248,9 @@ widget/
     ├── layout.py        # tamanho e posição / size and position
     └── general.py       # intervalos de atualização / update intervals
 ```
+
+---
+
+## Licença / License
+
+MIT — use, modifique e distribua à vontade. / MIT — use, modify and distribute freely.

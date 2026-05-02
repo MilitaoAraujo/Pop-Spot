@@ -148,10 +148,6 @@ Não compatível nativamente. Opções possíveis / Not natively compatible. Pos
 1. **WSL2 com WSLg** — instale o Ubuntu no WSL2, ative o WSLg (suporte a GUI) e rode normalmente / Install Ubuntu on WSL2, enable WSLg (GUI support) and run normally
 2. **VirtualBox / VMware** — rode uma VM Linux e use o widget dentro dela / Run a Linux VM and use the widget inside it
 
-O widget foi projetado para Linux e se aproveita de funcionalidades exclusivas como Wayland Layer Shell e PulseAudio. Uma portabilidade completa para Windows exigiria reescrever o visualizador de áudio e o sistema de janelas.
-
-The widget was designed for Linux and relies on Linux-exclusive features like Wayland Layer Shell and PulseAudio. A full Windows port would require rewriting the audio visualizer and window management system.
-
 ---
 
 ## Personalização / Customization

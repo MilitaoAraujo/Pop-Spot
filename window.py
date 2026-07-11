@@ -23,7 +23,7 @@ from config import (
     ICONE_CLIMA_PADRAO, TEXTO_BUSCANDO_CLIMA, TEXTO_SEM_CONEXAO, FORMATO_VENTO_UMIDADE,
     UNIDADE_TEMPERATURA, DIAS_SEMANA, TEXTO_PROGRESSO_DIA,
 )
-from config import COR_DESTAQUE, COR_TEXTO, COR_BASE, COR_BOTOES_SPOTIFY
+from config import COR_DESTAQUE, COR_TEXTO, COR_BASE, COR_BOTOES_SPOTIFY, COR_SUPERFICIE
 from css     import gerar_css
 import weather  as mod_clima
 import spotify  as mod_spotify
@@ -56,6 +56,7 @@ class _BotaoMedia(Gtk.DrawingArea):
         self._hover      = False
         self._cor        = _hex_rgb(COR_BOTOES_SPOTIFY)
         self._cor_off    = (0.5, 0.5, 0.5)
+        self._cor_bg     = _hex_rgb(COR_SUPERFICIE)
 
         self.set_size_request(38, 38)
         self.set_tooltip_text(tooltip)
@@ -100,16 +101,19 @@ class _BotaoMedia(Gtk.DrawingArea):
         except ImportError:
             cr.set_operator(2)
 
-        # Cantos arredondados com fundo escuro sutil
-        alpha_bg = 0.20 if self._habilitado else 0.08
+        # Fundo sólido com cantos arredondados (mesma cor de superfície do widget)
         cr.new_sub_path()
-        cr.arc(r_borda,     r_borda,     r_borda, _math.pi,       3*_math.pi/2)
-        cr.arc(w-r_borda,   r_borda,     r_borda, -_math.pi/2,    0)
-        cr.arc(w-r_borda,   h-r_borda,   r_borda, 0,              _math.pi/2)
-        cr.arc(r_borda,     h-r_borda,   r_borda, _math.pi/2,     _math.pi)
+        cr.arc(r_borda,   r_borda,   r_borda, _math.pi,    3*_math.pi/2)
+        cr.arc(w-r_borda, r_borda,   r_borda, -_math.pi/2, 0)
+        cr.arc(w-r_borda, h-r_borda, r_borda, 0,           _math.pi/2)
+        cr.arc(r_borda,   h-r_borda, r_borda, _math.pi/2,  _math.pi)
         cr.close_path()
-        cr.set_source_rgba(0, 0, 0, alpha_bg)
-        cr.fill()
+        cr.set_source_rgb(*self._cor_bg)
+        cr.fill_preserve()
+        # Borda sutil um pouco mais escura
+        cr.set_source_rgba(0, 0, 0, 0.35)
+        cr.set_line_width(1)
+        cr.stroke()
 
         # ── Ícone ────────────────────────────────────────────────────────
         if not self._habilitado:

@@ -110,9 +110,9 @@ class _BotaoMedia(Gtk.DrawingArea):
         cr.close_path()
         cr.set_source_rgb(*self._cor_bg)
         cr.fill_preserve()
-        # Borda sutil um pouco mais escura
-        cr.set_source_rgba(0, 0, 0, 0.35)
-        cr.set_line_width(1)
+        # Borda branca visível
+        cr.set_source_rgb(1, 1, 1)
+        cr.set_line_width(1.2)
         cr.stroke()
 
         # ── Ícone ────────────────────────────────────────────────────────

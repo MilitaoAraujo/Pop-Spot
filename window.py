@@ -61,11 +61,13 @@ class _BotaoMedia(Gtk.DrawingArea):
         self.set_size_request(52, 30)
         self.set_tooltip_text(tooltip)
         self.add_events(
-            Gdk.EventMask.BUTTON_RELEASE_MASK
+            Gdk.EventMask.BUTTON_PRESS_MASK
+            | Gdk.EventMask.BUTTON_RELEASE_MASK
             | Gdk.EventMask.ENTER_NOTIFY_MASK
             | Gdk.EventMask.LEAVE_NOTIFY_MASK
         )
         self.connect("draw",               self._on_draw)
+        self.connect("button-press-event", lambda *_: True)  # consome o press, evita arrasto
         self.connect("enter-notify-event", lambda *_: self._set_hover(True))
         self.connect("leave-notify-event", lambda *_: self._set_hover(False))
 
@@ -168,11 +170,13 @@ class _BotaoEngrenagem(Gtk.DrawingArea):
         self.set_size_request(22, 22)
         self.set_tooltip_text("Configurações")
         self.add_events(
-            Gdk.EventMask.BUTTON_RELEASE_MASK
+            Gdk.EventMask.BUTTON_PRESS_MASK
+            | Gdk.EventMask.BUTTON_RELEASE_MASK
             | Gdk.EventMask.ENTER_NOTIFY_MASK
             | Gdk.EventMask.LEAVE_NOTIFY_MASK
         )
         self.connect("draw",               self._on_draw)
+        self.connect("button-press-event", lambda *_: True)  # consome o press, evita arrasto
         self.connect("button-release-event", self._on_click)
         self.connect("enter-notify-event", lambda *_: self._set_hover(True))
         self.connect("leave-notify-event", lambda *_: self._set_hover(False))
@@ -251,11 +255,13 @@ class _BotaoVoltar(Gtk.DrawingArea):
         self.set_size_request(22, 22)
         self.set_tooltip_text("Voltar")
         self.add_events(
-            Gdk.EventMask.BUTTON_RELEASE_MASK
+            Gdk.EventMask.BUTTON_PRESS_MASK
+            | Gdk.EventMask.BUTTON_RELEASE_MASK
             | Gdk.EventMask.ENTER_NOTIFY_MASK
             | Gdk.EventMask.LEAVE_NOTIFY_MASK
         )
         self.connect("draw",               self._on_draw)
+        self.connect("button-press-event", lambda *_: True)  # consome o press, evita arrasto
         self.connect("button-release-event", self._on_click)
         self.connect("enter-notify-event", lambda *_: self._set_hover(True))
         self.connect("leave-notify-event", lambda *_: self._set_hover(False))
@@ -912,11 +918,22 @@ class WidgetDesktop(Gtk.Window):
         return s
 
     def _iniciar_arrasto(self, widget, event):
-        """Permite mover o widget clicando e arrastando em qualquer área que
-        não seja um botão interativo."""
+        """Permite mover o widget apenas clicando e arrastando nas bordas do widget."""
         if event.button == 1 and event.type == Gdk.EventType.BUTTON_PRESS:
             alvo = Gtk.get_event_widget(event)
-            if alvo and not isinstance(alvo, (Gtk.Button, _BotaoMedia, _BotaoEngrenagem, _BotaoVoltar, Gtk.ColorButton)):
+            if alvo and isinstance(alvo, (Gtk.Button, _BotaoMedia, _BotaoEngrenagem, _BotaoVoltar, Gtk.ColorButton)):
+                return False  # não arrasta quando clica em botão
+
+            # Permite arrastar apenas na zona de borda (padding externo do widget)
+            BORDA = 26  # px — corresponde ao padding do .raiz
+            w = self.get_allocated_width()
+            h = self.get_allocated_height()
+            x, y = event.x, event.y
+            na_borda = (
+                x < BORDA or x > w - BORDA or
+                y < BORDA or y > h - BORDA
+            )
+            if na_borda:
                 self.begin_move_drag(1, int(event.x_root), int(event.y_root), event.time)
                 return True
         return False

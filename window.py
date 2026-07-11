@@ -58,7 +58,7 @@ class _BotaoMedia(Gtk.DrawingArea):
         self._cor_off    = (0.5, 0.5, 0.5)
         self._cor_bg     = _hex_rgb(COR_SUPERFICIE)
 
-        self.set_size_request(38, 38)
+        self.set_size_request(52, 30)
         self.set_tooltip_text(tooltip)
         self.add_events(
             Gdk.EventMask.BUTTON_RELEASE_MASK

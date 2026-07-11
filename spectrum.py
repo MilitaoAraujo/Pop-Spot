@@ -105,26 +105,50 @@ class AudioSpectrum:
         try:
             import sounddevice as sd
         except ImportError:
-            log.warning(
-                "sounddevice não encontrado — espectro desativado no Windows. "
-                "Execute: pip install sounddevice"
-            )
+            log.warning("sounddevice não encontrado — espectro desativado. Execute: pip install sounddevice")
             self._running = False
             return
 
         try:
             wasapi = sd.WasapiSettings(loopback=True)
-            output_device = sd.default.device[1]
-            stream = sd.InputStream(
-                device=output_device,
-                samplerate=RATE,
-                channels=1,
-                dtype="int16",
-                extra_settings=wasapi,
-                blocksize=CHUNK,
-            )
-        except Exception as e:
-            log.warning("sounddevice WASAPI loopback não disponível: %s — espectro desativado", e)
+        except AttributeError:
+            log.warning("sounddevice sem suporte WASAPI — espectro desativado")
+            self._running = False
+            return
+
+        # Encontra o dispositivo de saída padrão
+        out_idx = sd.default.device[1]
+        if out_idx < 0:
+            for i, dev in enumerate(sd.query_devices()):
+                if dev["max_output_channels"] > 0:
+                    out_idx = i
+                    break
+        if out_idx < 0:
+            log.warning("Nenhum dispositivo de saída encontrado — espectro desativado")
+            self._running = False
+            return
+
+        # Usa a taxa nativa do dispositivo para evitar erros de conversão
+        dev_info  = sd.query_devices(out_idx)
+        taxa      = int(dev_info.get("default_samplerate", RATE))
+
+        stream = None
+        for canais in (1, 2):
+            try:
+                stream = sd.InputStream(
+                    device=out_idx,
+                    samplerate=taxa,
+                    channels=canais,
+                    dtype="int16",
+                    extra_settings=wasapi,
+                    blocksize=CHUNK,
+                )
+                break
+            except Exception as e:
+                log.debug("WASAPI loopback tentativa %dch: %s", canais, e)
+
+        if stream is None:
+            log.warning("WASAPI loopback não disponível — espectro desativado")
             self._running = False
             return
 
@@ -132,6 +156,9 @@ class AudioSpectrum:
             while self._running:
                 try:
                     data, _ = stream.read(CHUNK)
+                    # Converte stereo → mono se necessário
+                    if data.ndim > 1:
+                        data = data.mean(axis=1).astype(np.int16)
                     self._process(data.tobytes(), np)
                 except Exception as e:
                     log.debug("sounddevice leitura: %s", e)

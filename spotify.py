@@ -208,39 +208,16 @@ def _buscar_windows() -> dict | None:
 
 
 def _comando_windows(metodo: str) -> bool:
-    """Envia tecla de mídia virtual (funciona com qualquer player)."""
+    """Envia tecla de mídia virtual via keybd_event (funciona com qualquer player)."""
     try:
         import ctypes
-        import ctypes.wintypes
-
         VK = {"PlayPause": 0xB3, "Next": 0xB0, "Previous": 0xB1}
         vk = VK.get(metodo)
         if not vk:
             return False
-
-        INPUT_KEYBOARD   = 1
-        KEYEVENTF_KEYUP  = 0x0002
-
-        class KEYBDINPUT(ctypes.Structure):
-            _fields_ = [("wVk", ctypes.wintypes.WORD), ("wScan", ctypes.wintypes.WORD),
-                        ("dwFlags", ctypes.wintypes.DWORD), ("time", ctypes.wintypes.DWORD),
-                        ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong))]
-
-        class _U(ctypes.Union):
-            _fields_ = [("ki", KEYBDINPUT)]
-
-        class INPUT(ctypes.Structure):
-            _anonymous_ = ("_u",)
-            _fields_    = [("type", ctypes.wintypes.DWORD), ("_u", _U)]
-
-        inputs = (INPUT * 2)()
-        inputs[0].type = INPUT_KEYBOARD
-        inputs[0].ki.wVk = vk
-        inputs[1].type = INPUT_KEYBOARD
-        inputs[1].ki.wVk = vk
-        inputs[1].ki.dwFlags = KEYEVENTF_KEYUP
-
-        ctypes.windll.user32.SendInput(2, inputs, ctypes.sizeof(INPUT))
+        KEYEVENTF_KEYUP = 0x02
+        ctypes.windll.user32.keybd_event(vk, 0, 0,              0)
+        ctypes.windll.user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
         return True
     except Exception as e:
         log.debug("comando_windows: %s", e)

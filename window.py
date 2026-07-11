@@ -481,9 +481,12 @@ class WidgetDesktop(Gtk.Window):
 
     def _botao_spotify(self, texto: str, tooltip: str) -> Gtk.Button:
         b = Gtk.Button()
-        b.get_style_context().add_class("btnSpotify")
+        ctx = b.get_style_context()
+        ctx.add_class("btnSpotify")
+        ctx.add_class("flat")       # remove decoração padrão do tema GTK
         b.set_tooltip_text(tooltip)
         b.set_relief(Gtk.ReliefStyle.NONE)
+        b.set_can_focus(False)      # evita o contorno de foco
         b.set_sensitive(False)
         lbl = Gtk.Label()
         lbl.set_markup(self._icone_markup(texto))

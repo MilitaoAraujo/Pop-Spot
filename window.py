@@ -23,13 +23,136 @@ from config import (
     ICONE_CLIMA_PADRAO, TEXTO_BUSCANDO_CLIMA, TEXTO_SEM_CONEXAO, FORMATO_VENTO_UMIDADE,
     UNIDADE_TEMPERATURA, DIAS_SEMANA, TEXTO_PROGRESSO_DIA,
 )
-from config import COR_DESTAQUE, COR_TEXTO, COR_BASE
+from config import COR_DESTAQUE, COR_TEXTO, COR_BASE, COR_BOTOES_SPOTIFY
 from css     import gerar_css
 import weather  as mod_clima
 import spotify  as mod_spotify
 from spectrum import AudioSpectrum
 
 log = logging.getLogger("widget")
+
+import math as _math
+
+
+def _hex_rgb(cor: str) -> tuple:
+    """Converte #rrggbb ou rgba(...) → (r,g,b) no intervalo 0..1."""
+    cor = cor.strip()
+    if cor.startswith("#"):
+        h = cor.lstrip("#")
+        return int(h[0:2], 16)/255, int(h[2:4], 16)/255, int(h[4:6], 16)/255
+    if cor.startswith("rgba"):
+        p = cor[5:-1].split(",")
+        return int(p[0])/255, int(p[1])/255, int(p[2])/255
+    return 1.0, 1.0, 1.0
+
+
+class _BotaoMedia(Gtk.DrawingArea):
+    """Botão de controle desenhado com Cairo — ícone vetorial sem emoji ou tema GTK."""
+
+    def __init__(self, tipo: str, tooltip: str):
+        super().__init__()
+        self._tipo       = tipo   # "prev" | "play" | "pause" | "next"
+        self._habilitado = False
+        self._hover      = False
+        self._cor        = _hex_rgb(COR_BOTOES_SPOTIFY)
+        self._cor_off    = (0.5, 0.5, 0.5)
+
+        self.set_size_request(38, 38)
+        self.set_tooltip_text(tooltip)
+        self.add_events(
+            Gdk.EventMask.BUTTON_RELEASE_MASK
+            | Gdk.EventMask.ENTER_NOTIFY_MASK
+            | Gdk.EventMask.LEAVE_NOTIFY_MASK
+        )
+        self.connect("draw",               self._on_draw)
+        self.connect("enter-notify-event", lambda *_: self._set_hover(True))
+        self.connect("leave-notify-event", lambda *_: self._set_hover(False))
+
+    def set_tipo(self, tipo: str):
+        self._tipo = tipo
+        self.queue_draw()
+
+    def set_habilitado(self, v: bool):
+        self._habilitado = v
+        self.queue_draw()
+
+    def _set_hover(self, v):
+        self._hover = v
+        self.queue_draw()
+
+    def _on_draw(self, widget, cr):
+        w = widget.get_allocated_width()
+        h = widget.get_allocated_height()
+        cx, cy = w / 2, h / 2
+        r_borda = 6
+
+        # ── Fundo: transparente com leve camada escura ──────────────────
+        try:
+            import cairo
+            cr.set_operator(cairo.OPERATOR_SOURCE)
+        except ImportError:
+            cr.set_operator(1)
+        cr.set_source_rgba(0, 0, 0, 0)
+        cr.paint()
+        try:
+            import cairo
+            cr.set_operator(cairo.OPERATOR_OVER)
+        except ImportError:
+            cr.set_operator(2)
+
+        # Cantos arredondados com fundo escuro sutil
+        alpha_bg = 0.20 if self._habilitado else 0.08
+        cr.new_sub_path()
+        cr.arc(r_borda,     r_borda,     r_borda, _math.pi,       3*_math.pi/2)
+        cr.arc(w-r_borda,   r_borda,     r_borda, -_math.pi/2,    0)
+        cr.arc(w-r_borda,   h-r_borda,   r_borda, 0,              _math.pi/2)
+        cr.arc(r_borda,     h-r_borda,   r_borda, _math.pi/2,     _math.pi)
+        cr.close_path()
+        cr.set_source_rgba(0, 0, 0, alpha_bg)
+        cr.fill()
+
+        # ── Ícone ────────────────────────────────────────────────────────
+        if not self._habilitado:
+            cr.set_source_rgba(*self._cor_off, 0.30)
+        elif self._hover:
+            cr.set_source_rgba(*self._cor, 1.0)
+        else:
+            cr.set_source_rgba(*self._cor, 0.80)
+
+        s = min(w, h) * 0.30
+        self._draw_icon(cr, cx, cy, s)
+        return True
+
+    def _draw_icon(self, cr, cx, cy, s):
+        if self._tipo == "play":
+            cr.move_to(cx - s * 0.7, cy - s)
+            cr.line_to(cx + s,       cy)
+            cr.line_to(cx - s * 0.7, cy + s)
+            cr.close_path()
+            cr.fill()
+
+        elif self._tipo == "pause":
+            bw, g = s * 0.38, s * 0.28
+            cr.rectangle(cx - g - bw, cy - s, bw, s * 2)
+            cr.fill()
+            cr.rectangle(cx + g,      cy - s, bw, s * 2)
+            cr.fill()
+
+        elif self._tipo in ("prev", "next"):
+            d  = 1 if self._tipo == "next" else -1
+            sep = s * 0.6
+            for k in range(2):
+                ox = d * sep * k
+                if d > 0:
+                    cr.move_to(cx + ox - s * 0.5, cy - s)
+                    cr.line_to(cx + ox + s * 0.5, cy)
+                    cr.line_to(cx + ox - s * 0.5, cy + s)
+                else:
+                    cr.move_to(cx + ox + s * 0.5,  cy - s)
+                    cr.line_to(cx + ox - s * 0.5,  cy)
+                    cr.line_to(cx + ox + s * 0.5,  cy + s)
+                cr.close_path()
+                cr.fill()
 
 for _loc in ("pt_BR.UTF-8", "pt_BR", "pt_PT.UTF-8", "pt_PT", ""):
     try:
@@ -367,12 +490,12 @@ class WidgetDesktop(Gtk.Window):
 
         linha_ctrl = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         linha_ctrl.set_halign(Gtk.Align.START)
-        self.btn_spotify_prev = self._botao_spotify(ICONE_SPOTIFY_ANTERIOR, TOOLTIP_SPOTIFY_ANTERIOR)
-        self.btn_spotify_prev.connect("clicked", self._on_spotify_prev)
-        self.btn_spotify_play = self._botao_spotify(ICONE_SPOTIFY_REPRODUZIR, TOOLTIP_SPOTIFY_PLAY)
-        self.btn_spotify_play.connect("clicked", self._on_spotify_play_pause)
-        self.btn_spotify_next = self._botao_spotify(ICONE_SPOTIFY_PROXIMO, TOOLTIP_SPOTIFY_PROXIMO)
-        self.btn_spotify_next.connect("clicked", self._on_spotify_next)
+        self.btn_spotify_prev = _BotaoMedia("prev", TOOLTIP_SPOTIFY_ANTERIOR)
+        self.btn_spotify_prev.connect("button-release-event", self._on_spotify_prev)
+        self.btn_spotify_play = _BotaoMedia("play", TOOLTIP_SPOTIFY_PLAY)
+        self.btn_spotify_play.connect("button-release-event", self._on_spotify_play_pause)
+        self.btn_spotify_next = _BotaoMedia("next", TOOLTIP_SPOTIFY_PROXIMO)
+        self.btn_spotify_next.connect("button-release-event", self._on_spotify_next)
         for b in (self.btn_spotify_prev, self.btn_spotify_play, self.btn_spotify_next):
             linha_ctrl.pack_start(b, False, False, 0)
         caixa_spotify.pack_start(linha_ctrl, False, False, 8)
@@ -469,44 +592,7 @@ class WidgetDesktop(Gtk.Window):
             lbl.set_max_width_chars(30)
         return lbl
 
-    @staticmethod
-    def _icone_markup(texto: str) -> str:
-        """Envolve o texto em Pango markup com fonte emoji para garantir renderização."""
-        esc = GLib.markup_escape_text(texto)
-        if sys.platform == "win32":
-            fonte = "Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji,DejaVu Sans"
-        else:
-            fonte = "Noto Color Emoji,Symbola,DejaVu Sans"
-        return f'<span font_family="{fonte}" font_size="13pt">{esc}</span>'
 
-    @staticmethod
-    def _draw_btn_transparente(widget, cr):
-        """Substitui o draw padrão do GTK por fundo totalmente transparente."""
-        try:
-            import cairo
-            cr.set_operator(cairo.OPERATOR_SOURCE)
-        except ImportError:
-            cr.set_operator(1)
-        cr.set_source_rgba(0, 0, 0, 0)
-        cr.paint()
-        child = widget.get_child()
-        if child:
-            widget.propagate_draw(child, cr)
-        return True   # True = não chama o draw padrão (sem background do tema)
-
-    def _botao_spotify(self, texto: str, tooltip: str) -> Gtk.Button:
-        b = Gtk.Button()
-        b.get_style_context().add_class("btnSpotify")
-        b.set_tooltip_text(tooltip)
-        b.set_relief(Gtk.ReliefStyle.NONE)
-        b.set_can_focus(False)
-        b.set_sensitive(False)
-        b.connect("draw", self._draw_btn_transparente)
-        lbl = Gtk.Label()
-        lbl.set_markup(self._icone_markup(texto))
-        b.add(lbl)
-        lbl.show()
-        return b
 
     def _separador(self):
         s = Gtk.EventBox()
@@ -519,7 +605,7 @@ class WidgetDesktop(Gtk.Window):
         não seja um botão interativo."""
         if event.button == 1 and event.type == Gdk.EventType.BUTTON_PRESS:
             alvo = Gtk.get_event_widget(event)
-            if alvo and not isinstance(alvo, Gtk.Button):
+            if alvo and not isinstance(alvo, (Gtk.Button, _BotaoMedia)):
                 self.begin_move_drag(1, int(event.x_root), int(event.y_root), event.time)
                 return True
         return False
@@ -690,16 +776,16 @@ class WidgetDesktop(Gtk.Window):
         self._tick_spotify()
         return False
 
-    def _on_spotify_prev(self, _btn):
-        if mod_spotify.comando("Previous"):
+    def _on_spotify_prev(self, _widget, event):
+        if event.button == 1 and mod_spotify.comando("Previous"):
             GLib.timeout_add(200, self._spotify_refresh_once)
 
-    def _on_spotify_next(self, _btn):
-        if mod_spotify.comando("Next"):
+    def _on_spotify_next(self, _widget, event):
+        if event.button == 1 and mod_spotify.comando("Next"):
             GLib.timeout_add(200, self._spotify_refresh_once)
 
-    def _on_spotify_play_pause(self, _btn):
-        if mod_spotify.comando("PlayPause"):
+    def _on_spotify_play_pause(self, _widget, event):
+        if event.button == 1 and mod_spotify.comando("PlayPause"):
             GLib.timeout_add(200, self._spotify_refresh_once)
 
     def _aplicar_spotify(self, dados):
@@ -708,14 +794,9 @@ class WidgetDesktop(Gtk.Window):
 
         spotify_aberto = bool(dados)
         for b in (self.btn_spotify_prev, self.btn_spotify_play, self.btn_spotify_next):
-            b.set_sensitive(spotify_aberto)
+            b.set_habilitado(spotify_aberto)
         if dados:
-            icone_play = ICONE_SPOTIFY_PAUSAR if tocando else ICONE_SPOTIFY_REPRODUZIR
-            lbl_play = self.btn_spotify_play.get_child()
-            if isinstance(lbl_play, Gtk.Label):
-                lbl_play.set_markup(self._icone_markup(icone_play))
-            else:
-                self.btn_spotify_play.set_label(icone_play)
+            self.btn_spotify_play.set_tipo("pause" if tocando else "play")
             self.btn_spotify_play.set_tooltip_text(
                 TOOLTIP_SPOTIFY_PAUSE if tocando else TOOLTIP_SPOTIFY_PLAY)
 

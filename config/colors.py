@@ -22,6 +22,10 @@ COR_SUPERFICIE = "#14141c"
 # Color of the control button icons (play, pause, previous, next).
 COR_BOTOES_SPOTIFY = COR_DESTAQUE
 
+# Cor terciária — espectro de áudio e temperatura.
+# Tertiary color — audio spectrum and temperature display.
+COR_TERCIARIA = COR_DESTAQUE
+
 # Derivações automáticas — não é necessário editar abaixo
 # Automatic derivations — no need to edit below
 
@@ -57,3 +61,39 @@ COR_SEPARADOR        = COR_TEXTO_SECUNDARIO
 COR_SUPERFICIE_HOVER   = _misturar(COR_SUPERFICIE, "#ffffff", 0.10)
 COR_SUPERFICIE_ACTIVE  = _misturar(COR_SUPERFICIE, "#000000", 0.14)
 COR_SUPERFICIE_APAGADA = _misturar(COR_SUPERFICIE, "#000000", 0.10)
+
+
+def _recalcular_derivadas():
+    """Recalcula todas as variáveis derivadas após carregar user_settings.json."""
+    global COR_FUNDO, COR_HORA, COR_DATA, COR_TEXTO_PRIMARIO
+    global COR_TEXTO_SECUNDARIO, COR_TEXTO_APAGADO, COR_SEPARADOR
+    global COR_BOTOES_SPOTIFY, COR_SUPERFICIE_HOVER, COR_SUPERFICIE_ACTIVE
+    global COR_SUPERFICIE_APAGADA
+    COR_FUNDO            = _rgba(COR_BASE, 0.93)
+    COR_HORA             = COR_TEXTO
+    COR_DATA             = _rgba(COR_TEXTO, 0.45)
+    COR_TEXTO_PRIMARIO   = COR_TEXTO
+    COR_TEXTO_SECUNDARIO = _rgba(COR_TEXTO, 0.60)
+    COR_TEXTO_APAGADO    = _rgba(COR_TEXTO, 0.28)
+    COR_SEPARADOR        = COR_TEXTO_SECUNDARIO
+    COR_BOTOES_SPOTIFY   = COR_DESTAQUE
+    COR_SUPERFICIE_HOVER   = _misturar(COR_SUPERFICIE, "#ffffff", 0.10)
+    COR_SUPERFICIE_ACTIVE  = _misturar(COR_SUPERFICIE, "#000000", 0.14)
+    COR_SUPERFICIE_APAGADA = _misturar(COR_SUPERFICIE, "#000000", 0.10)
+
+
+# ── Carregar personalizações do usuário ────────────────────────────────────────
+from pathlib import Path as _Path
+import json as _json
+
+_CFG_USR = _Path(__file__).parent / "user_settings.json"
+if _CFG_USR.exists():
+    try:
+        _u = _json.loads(_CFG_USR.read_text("utf-8"))
+        COR_BASE       = _u.get("COR_BASE",       COR_BASE)
+        COR_DESTAQUE   = _u.get("COR_DESTAQUE",   COR_DESTAQUE)
+        COR_TERCIARIA  = _u.get("COR_TERCIARIA",  COR_TERCIARIA)
+        COR_SUPERFICIE = _u.get("COR_SUPERFICIE", COR_SUPERFICIE)
+        _recalcular_derivadas()
+    except Exception:
+        pass

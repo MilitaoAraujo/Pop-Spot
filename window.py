@@ -23,7 +23,7 @@ from config import (
     ICONE_CLIMA_PADRAO, TEXTO_BUSCANDO_CLIMA, TEXTO_SEM_CONEXAO, FORMATO_VENTO_UMIDADE,
     UNIDADE_TEMPERATURA, DIAS_SEMANA, TEXTO_PROGRESSO_DIA,
 )
-from config import COR_DESTAQUE, COR_TEXTO, COR_BASE, COR_BOTOES_SPOTIFY, COR_SUPERFICIE
+from config import COR_DESTAQUE, COR_TEXTO, COR_BASE, COR_BOTOES_SPOTIFY, COR_SUPERFICIE, COR_TERCIARIA
 from css     import gerar_css
 import weather  as mod_clima
 import spotify  as mod_spotify
@@ -158,6 +158,152 @@ class _BotaoMedia(Gtk.DrawingArea):
                 cr.close_path()
                 cr.fill()
 
+class _BotaoEngrenagem(Gtk.DrawingArea):
+    """Botão de configurações desenhado com Cairo — ícone de engrenagem."""
+
+    def __init__(self, callback):
+        super().__init__()
+        self._hover    = False
+        self._callback = callback
+        self.set_size_request(22, 22)
+        self.set_tooltip_text("Configurações")
+        self.add_events(
+            Gdk.EventMask.BUTTON_RELEASE_MASK
+            | Gdk.EventMask.ENTER_NOTIFY_MASK
+            | Gdk.EventMask.LEAVE_NOTIFY_MASK
+        )
+        self.connect("draw",               self._on_draw)
+        self.connect("button-release-event", self._on_click)
+        self.connect("enter-notify-event", lambda *_: self._set_hover(True))
+        self.connect("leave-notify-event", lambda *_: self._set_hover(False))
+
+    def _set_hover(self, v):
+        self._hover = v
+        self.queue_draw()
+
+    def _on_click(self, widget, event):
+        if event.button == 1:
+            self._callback()
+
+    def _on_draw(self, widget, cr):
+        w = widget.get_allocated_width()
+        h = widget.get_allocated_height()
+        cx, cy = w / 2, h / 2
+
+        # Fundo transparente
+        try:
+            import cairo
+            cr.set_operator(cairo.OPERATOR_SOURCE)
+        except ImportError:
+            cr.set_operator(1)
+        cr.set_source_rgba(0, 0, 0, 0)
+        cr.paint()
+        try:
+            import cairo
+            cr.set_operator(cairo.OPERATOR_OVER)
+        except ImportError:
+            cr.set_operator(2)
+
+        # Cor do ícone
+        alpha = 1.0 if self._hover else 0.55
+        r, g, b = _hex_rgb(COR_TEXTO)
+        cr.set_source_rgba(r, g, b, alpha)
+
+        # Engrenagem: estrela de dentes alternando raio externo/interno
+        n_dentes = 8
+        r_ext = min(w, h) / 2 - 1
+        r_int = r_ext * 0.62
+        r_hub = r_ext * 0.28
+
+        cr.new_path()
+        for i in range(n_dentes * 2):
+            angle = _math.pi * i / n_dentes - _math.pi / 2
+            rr = r_ext if i % 2 == 0 else r_int
+            x  = cx + rr * _math.cos(angle)
+            y  = cy + rr * _math.sin(angle)
+            if i == 0:
+                cr.move_to(x, y)
+            else:
+                cr.line_to(x, y)
+        cr.close_path()
+        cr.fill()
+
+        # Furo central (fundo transparente)
+        try:
+            import cairo
+            cr.set_operator(cairo.OPERATOR_SOURCE)
+        except ImportError:
+            cr.set_operator(1)
+        cr.set_source_rgba(0, 0, 0, 0)
+        cr.arc(cx, cy, r_hub, 0, 2 * _math.pi)
+        cr.fill()
+
+        return True
+
+
+class _BotaoVoltar(Gtk.DrawingArea):
+    """Botão de 'Voltar' (seta ←) desenhado com Cairo para a tela de configurações."""
+
+    def __init__(self, callback):
+        super().__init__()
+        self._hover    = False
+        self._callback = callback
+        self.set_size_request(22, 22)
+        self.set_tooltip_text("Voltar")
+        self.add_events(
+            Gdk.EventMask.BUTTON_RELEASE_MASK
+            | Gdk.EventMask.ENTER_NOTIFY_MASK
+            | Gdk.EventMask.LEAVE_NOTIFY_MASK
+        )
+        self.connect("draw",               self._on_draw)
+        self.connect("button-release-event", self._on_click)
+        self.connect("enter-notify-event", lambda *_: self._set_hover(True))
+        self.connect("leave-notify-event", lambda *_: self._set_hover(False))
+
+    def _set_hover(self, v):
+        self._hover = v
+        self.queue_draw()
+
+    def _on_click(self, widget, event):
+        if event.button == 1:
+            self._callback()
+
+    def _on_draw(self, widget, cr):
+        w = widget.get_allocated_width()
+        h = widget.get_allocated_height()
+        cx, cy = w / 2, h / 2
+
+        try:
+            import cairo
+            cr.set_operator(cairo.OPERATOR_SOURCE)
+        except ImportError:
+            cr.set_operator(1)
+        cr.set_source_rgba(0, 0, 0, 0)
+        cr.paint()
+        try:
+            import cairo
+            cr.set_operator(cairo.OPERATOR_OVER)
+        except ImportError:
+            cr.set_operator(2)
+
+        alpha = 1.0 if self._hover else 0.55
+        r, g, b = _hex_rgb(COR_DESTAQUE)
+        cr.set_source_rgba(r, g, b, alpha)
+        cr.set_line_width(2.0)
+        cr.set_line_cap(1)  # ROUND
+
+        s = min(w, h) * 0.35
+        # Seta ← : corpo + duas asas
+        cr.move_to(cx + s, cy)
+        cr.line_to(cx - s, cy)
+        cr.stroke()
+        cr.move_to(cx - s * 0.1, cy - s * 0.7)
+        cr.line_to(cx - s,       cy)
+        cr.line_to(cx - s * 0.1, cy + s * 0.7)
+        cr.stroke()
+        return True
+
+
 for _loc in ("pt_BR.UTF-8", "pt_BR", "pt_PT.UTF-8", "pt_PT", ""):
     try:
         locale.setlocale(locale.LC_TIME, _loc)
@@ -170,7 +316,7 @@ def _parsear_cores_espectro():
     def _hex(c):
         h = c.lstrip("#")
         return int(h[0:2], 16) / 255, int(h[2:4], 16) / 255, int(h[4:6], 16) / 255
-    return _hex(COR_BASE), _hex(COR_TEXTO), _hex(COR_DESTAQUE)
+    return _hex(COR_BASE), _hex(COR_TEXTO), _hex(COR_TERCIARIA)
 
 
 def _sessao_cosmic() -> bool:
@@ -185,16 +331,17 @@ def _sessao_cosmic() -> bool:
 class WidgetDesktop(Gtk.Window):
     def __init__(self):
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
-        self._url_capa_atual  = None
-        self._ls              = None
-        self._pos_x           = 0
-        self._pos_y           = 0
-        self._spotify_ocupado = False
-        self._altura_atual    = 800
-        self._espectro        = AudioSpectrum()
-        self._cal_dia         = -1
-        self._cores_espectro  = _parsear_cores_espectro()
-        self._hwnd_win32      = None   # handle Win32, usado no Windows
+        self._url_capa_atual         = None
+        self._ls                     = None
+        self._pos_x                  = 0
+        self._pos_y                  = 0
+        self._spotify_ocupado        = False
+        self._altura_atual           = 800
+        self._espectro               = AudioSpectrum()
+        self._cal_dia                = -1
+        self._cores_espectro         = _parsear_cores_espectro()
+        self._hwnd_win32             = None   # handle Win32, usado no Windows
+        self._config_cores_pendentes = {}     # cores alteradas ainda não salvas
 
         _cfg = Path(__file__).parent / "config"
         self._config_arquivos = [p for p in _cfg.glob("*.py") if not p.name.startswith("_")]
@@ -527,10 +674,170 @@ class WidgetDesktop(Gtk.Window):
 
         raiz.pack_start(caixa_spotify, False, False, 0)
 
+        # ── Engrenagem + Overlay ──────────────────────────────────────────
+        btn_engr = _BotaoEngrenagem(self._abrir_configuracoes)
+        btn_engr.set_halign(Gtk.Align.END)
+        btn_engr.set_valign(Gtk.Align.START)
+        btn_engr.set_margin_top(8)
+        btn_engr.set_margin_end(8)
+
+        overlay_widget = Gtk.Overlay()
+        overlay_widget.add(raiz)
+        overlay_widget.add_overlay(btn_engr)
+
+        # ── Stack: widget principal ↔ configurações ───────────────────────
+        self._stack = Gtk.Stack()
+        self._stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
+        self._stack.set_transition_duration(200)
+        self._stack.add_named(overlay_widget, "widget")
+        self._stack.add_named(self._construir_pagina_config(), "config")
+
         self.connect("map", self._inicializar_altura)
         self.connect_after("map", self._pulso_superficie_wayland)
         self.connect("button-press-event", self._iniciar_arrasto)
-        self.add(raiz)
+        self.add(self._stack)
+
+    # ── Tela de configurações ─────────────────────────────────────────────
+
+    def _construir_pagina_config(self):
+        """Constrói a página de configurações de cores do widget."""
+        pagina = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        pagina.set_size_request(LARGURA, -1)
+        pagina.get_style_context().add_class("paginaConfig")
+
+        # ── Barra de título ───────────────────────────────────────────────
+        barra = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        barra.set_margin_top(14)
+        barra.set_margin_start(16)
+        barra.set_margin_end(14)
+        barra.set_margin_bottom(10)
+
+        lbl_titulo = Gtk.Label(label="Configurações")
+        lbl_titulo.get_style_context().add_class("configTitulo")
+        lbl_titulo.set_halign(Gtk.Align.START)
+        lbl_titulo.set_hexpand(True)
+        barra.pack_start(lbl_titulo, True, True, 0)
+
+        btn_fechar = _BotaoVoltar(self._fechar_configuracoes)
+        btn_fechar.set_halign(Gtk.Align.END)
+        barra.pack_end(btn_fechar, False, False, 0)
+
+        pagina.pack_start(barra, False, False, 0)
+
+        # Linha separadora
+        sep = Gtk.EventBox()
+        sep.get_style_context().add_class("sep")
+        sep.set_hexpand(True)
+        pagina.pack_start(sep, False, False, 0)
+
+        # ── Área de cores ─────────────────────────────────────────────────
+        corpo = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        corpo.set_margin_start(16)
+        corpo.set_margin_end(16)
+        corpo.set_margin_top(18)
+        corpo.set_margin_bottom(18)
+
+        def _linha_cor(rotulo, descricao, cor_hex, chave):
+            caixa = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+
+            topo = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+
+            lbl_r = Gtk.Label(label=rotulo)
+            lbl_r.get_style_context().add_class("configRotulo")
+            lbl_r.set_halign(Gtk.Align.START)
+            lbl_r.set_hexpand(True)
+            topo.pack_start(lbl_r, True, True, 0)
+
+            # Converte hex → Gdk.RGBA
+            gdk_cor = Gdk.RGBA()
+            gdk_cor.parse(cor_hex)
+            btn_cor = Gtk.ColorButton.new_with_rgba(gdk_cor)
+            btn_cor.set_title(f"Escolher {rotulo}")
+            btn_cor.set_use_alpha(False)
+            btn_cor.connect("color-set", self._ao_mudar_cor, chave)
+            topo.pack_end(btn_cor, False, False, 0)
+            caixa.pack_start(topo, False, False, 0)
+
+            lbl_desc = Gtk.Label(label=descricao)
+            lbl_desc.get_style_context().add_class("configDescricao")
+            lbl_desc.set_halign(Gtk.Align.START)
+            caixa.pack_start(lbl_desc, False, False, 0)
+            return caixa
+
+        # Lê as cores atuais (pode ter sido sobrescrito por user_settings.json)
+        import config.colors as _cc
+        corpo.pack_start(_linha_cor(
+            "Cor primária",
+            "Fundo principal e fundo dos botões",
+            _cc.COR_BASE, "COR_BASE"
+        ), False, False, 0)
+
+        corpo.pack_start(_linha_cor(
+            "Cor secundária",
+            "Destaques, títulos e elementos roxos",
+            _cc.COR_DESTAQUE, "COR_DESTAQUE"
+        ), False, False, 0)
+
+        corpo.pack_start(_linha_cor(
+            "Cor terciária",
+            "Espectro de áudio e temperatura",
+            _cc.COR_TERCIARIA, "COR_TERCIARIA"
+        ), False, False, 0)
+
+        pagina.pack_start(corpo, False, False, 0)
+
+        return pagina
+
+    def _abrir_configuracoes(self):
+        self._stack.set_visible_child_name("config")
+
+    def _fechar_configuracoes(self):
+        self._stack.set_visible_child_name("widget")
+
+    def _ao_mudar_cor(self, btn_cor, chave: str):
+        """Chamado quando o usuário escolhe uma cor no seletor."""
+        gdk_rgba = btn_cor.get_rgba()
+        hex_cor  = "#{:02x}{:02x}{:02x}".format(
+            int(gdk_rgba.red   * 255),
+            int(gdk_rgba.green * 255),
+            int(gdk_rgba.blue  * 255),
+        )
+        self._config_cores_pendentes[chave] = hex_cor
+        self._salvar_configuracoes()
+
+    def _salvar_configuracoes(self):
+        """Grava user_settings.json e dispara o hot-reload do widget."""
+        import json
+        import config.colors as _cc
+
+        cfg_path = Path(__file__).parent / "config" / "user_settings.json"
+
+        # Carrega configurações existentes para não perder cores não alteradas
+        atual: dict = {}
+        if cfg_path.exists():
+            try:
+                atual = json.loads(cfg_path.read_text("utf-8"))
+            except Exception:
+                pass
+
+        # Aplica as alterações pendentes
+        atual.update(self._config_cores_pendentes)
+
+        # Garante que sempre há os três valores salvos (usa valor do módulo como fallback)
+        for chave, padrao in (
+            ("COR_BASE",      _cc.COR_BASE),
+            ("COR_DESTAQUE",  _cc.COR_DESTAQUE),
+            ("COR_TERCIARIA", _cc.COR_TERCIARIA),
+        ):
+            if chave not in atual:
+                atual[chave] = padrao
+
+        cfg_path.write_text(json.dumps(atual, indent=2, ensure_ascii=False), "utf-8")
+        log.info("Configurações salvas em %s", cfg_path)
+
+        # Toca o mtime de colors.py para disparar o hot-reload automático
+        colors_py = Path(__file__).parent / "config" / "colors.py"
+        colors_py.touch()
 
     # ── Painel direito do relógio (progresso + calendário) ────────────────
 
@@ -609,7 +916,7 @@ class WidgetDesktop(Gtk.Window):
         não seja um botão interativo."""
         if event.button == 1 and event.type == Gdk.EventType.BUTTON_PRESS:
             alvo = Gtk.get_event_widget(event)
-            if alvo and not isinstance(alvo, (Gtk.Button, _BotaoMedia)):
+            if alvo and not isinstance(alvo, (Gtk.Button, _BotaoMedia, _BotaoEngrenagem, _BotaoVoltar, Gtk.ColorButton)):
                 self.begin_move_drag(1, int(event.x_root), int(event.y_root), event.time)
                 return True
         return False

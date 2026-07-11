@@ -5,7 +5,7 @@ from config import (
     COR_DESTAQUE, COR_TEXTO_SECUNDARIO, COR_TEXTO_APAGADO,
     COR_SEPARADOR, TAMANHO_FONTE_HORA,
     COR_SUPERFICIE, COR_SUPERFICIE_HOVER, COR_SUPERFICIE_ACTIVE, COR_SUPERFICIE_APAGADA,
-    COR_BOTOES_SPOTIFY,
+    COR_BOTOES_SPOTIFY, COR_TERCIARIA,
 )
 
 
@@ -63,7 +63,7 @@ box.sep {{
 .temperaturaClima {{
     font-size: 30px;
     font-weight: 300;
-    color: {COR_TEXTO_PRIMARIO};
+    color: {COR_TERCIARIA};
     margin-left: 6px;
 }}
 
@@ -163,16 +163,23 @@ button.btnSpotify:disabled label {{
     color: {COR_TEXTO_APAGADO};
 }}
 
+progressbar.barDia {{
+    border: none;
+    box-shadow: none;
+}}
 progressbar.barDia trough {{
     background-color: {COR_TEXTO_APAGADO};
     min-height: 3px;
     border-radius: 2px;
+    border: none;
+    box-shadow: none;
 }}
-
 progressbar.barDia trough progress {{
     background-color: {COR_DESTAQUE};
     min-height: 3px;
     border-radius: 2px;
+    border: none;
+    box-shadow: none;
 }}
 
 /* Mini calendário */
@@ -194,5 +201,37 @@ progressbar.barDia trough progress {{
     font-weight: 700;
     color: {COR_DESTAQUE};
     padding: 0px 2px;
+}}
+
+/* ── Tela de Configurações ─────────────────────────────────────────────── */
+.paginaConfig {{
+    background: {COR_FUNDO};
+    border-radius: {RAIO_BORDA}px;
+}}
+
+.configTitulo {{
+    font-size: 16px;
+    font-weight: 600;
+    color: {COR_TEXTO_PRIMARIO};
+}}
+
+.configRotulo {{
+    font-size: 13px;
+    font-weight: 500;
+    color: {COR_TEXTO_PRIMARIO};
+}}
+
+.configDescricao {{
+    font-size: 11px;
+    color: {COR_TEXTO_APAGADO};
+}}
+
+colorbutton {{
+    min-width: 38px;
+    min-height: 26px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: none;
+    padding: 2px 6px;
 }}
 """.encode()

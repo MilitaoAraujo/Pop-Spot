@@ -1,0 +1,22 @@
+# Temporarios gerados pelos scripts
+_teste_gtk.py
+
+# Build / PyInstaller
+dist/
+build/
+*.spec
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs e debug
+*.log
+/tmp/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

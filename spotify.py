@@ -80,13 +80,10 @@ def _proc_name(pid: int) -> str:
 
 def _buscar_windows() -> dict | None:
     """Lê artista/título do Spotify via título da janela Win32.
-    Prioriza busca por nome de processo; usa classe da janela como fallback."""
+    Filtra exclusivamente pelo nome do processo (Spotify.exe)."""
     try:
         import ctypes
         import ctypes.wintypes
-
-        # Classes usadas por janelas Spotify / Electron
-        SPOTIFY_CLASSES = {"Chrome_WidgetWin_0", "Chrome_WidgetWin_1", "SpotifyMainWindow"}
 
         encontrado = [None]
         ENUMPROC = ctypes.WINFUNCTYPE(
@@ -103,20 +100,12 @@ def _buscar_windows() -> dict | None:
                 if not titulo or " - " not in titulo:
                     return True
 
-                # 1) Verifica nome do processo (mais confiável)
+                # Só aceita janelas cujo processo seja literalmente Spotify.exe
                 pid = ctypes.wintypes.DWORD()
                 ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-                if "spotify" in _proc_name(pid.value):
+                if _proc_name(pid.value) == "spotify.exe":
                     encontrado[0] = titulo
                     return False   # para a enumeração
-
-                # 2) Fallback: verifica classe da janela (cobre casos em que
-                #    QueryFullProcessImageNameW falha por restrições de acesso)
-                cls = ctypes.create_unicode_buffer(256)
-                ctypes.windll.user32.GetClassNameW(hwnd, cls, 256)
-                if cls.value in SPOTIFY_CLASSES:
-                    encontrado[0] = titulo
-                    return False
             except Exception:
                 pass
             return True

@@ -34,7 +34,7 @@ TEXTO_PAUSADO        = "PAUSADO"
 PREFIXO_PAUSADO      = "⏸  "
 
 # Mensagem quando o Spotify não está aberto / Message when Spotify is not running
-TEXTO_SEM_SPOTIFY    = "Spotify não está rodando"
+TEXTO_SEM_SPOTIFY    = "Spotify não está aberto"
 
 # Botões MPRIS (faixa anterior, reproduzir/pausar, próxima faixa)
 # MPRIS control buttons (previous, play/pause, next)

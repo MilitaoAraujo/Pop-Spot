@@ -130,7 +130,8 @@ button.btnSpotify {{
     min-width:  28px;
     padding: 2px 6px;
     margin: 0;
-    font-size: 11px;
+    font-size: 13px;
+    font-family: 'Segoe UI Emoji', 'Noto Color Emoji', 'Segoe UI Symbol', 'Symbola', sans-serif;
     color: {COR_DESTAQUE};
     background-color: {COR_SUPERFICIE};
     border: 1px solid {COR_SEPARADOR};

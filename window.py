@@ -675,18 +675,21 @@ class WidgetDesktop(Gtk.Window):
         tocando = dados and dados["status"] in ("Playing", "Running")
         pausado = dados and dados["status"] == "Paused"
 
-        ativo = bool(dados)
+        spotify_aberto = bool(dados)
         for b in (self.btn_spotify_prev, self.btn_spotify_play, self.btn_spotify_next):
-            b.set_sensitive(ativo)
+            b.set_sensitive(spotify_aberto)
         if dados:
             self.btn_spotify_play.set_label(
                 ICONE_SPOTIFY_PAUSAR if tocando else ICONE_SPOTIFY_REPRODUZIR)
             self.btn_spotify_play.set_tooltip_text(
                 TOOLTIP_SPOTIFY_PAUSE if tocando else TOOLTIP_SPOTIFY_PLAY)
 
-        self.lbl_sem_musica.set_visible(not dados)
+        self.lbl_sem_musica.set_visible(not spotify_aberto)
         if dados:
             self.lbl_cabecalho_spotify.set_text(TEXTO_PAUSADO if pausado else TEXTO_TOCANDO)
+        else:
+            # Spotify fechado: mostra a última música conhecida (cabeçalho apagado)
+            self.lbl_cabecalho_spotify.set_text("")
 
         if tocando or pausado:
             prefixo = PREFIXO_PAUSADO if pausado else ""
@@ -697,12 +700,8 @@ class WidgetDesktop(Gtk.Window):
             if capa and capa != self._url_capa_atual:
                 self._url_capa_atual = capa
                 threading.Thread(target=self._bg_capa, args=(capa,), daemon=True).start()
-        else:
-            self.lbl_titulo.set_text("")
-            self.lbl_artista.set_text("")
-            self.lbl_album.set_text("")
-            self.img_capa.clear()
-            self._url_capa_atual = None
+        # Quando Spotify está fechado (dados is None), mantém capa e textos da
+        # última música — não limpa nada, o usuário vê a última faixa ouvida.
         return False
 
     def _bg_capa(self, url):

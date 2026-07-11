@@ -125,40 +125,15 @@ box.sep {{
     margin-top: 10px;
 }}
 
-/* Botões de controle — completamente transparentes, sem borda nem sombra */
+/* Botões de controle — fundo gerenciado via draw signal (transparente garantido) */
 button.btnSpotify {{
+    padding: 2px 8px;
+    margin: 0 2px;
     min-height: 24px;
     min-width:  30px;
-    padding: 2px 6px;
-    margin: 0 2px;
-    background-color: transparent;
-    background-image: none;
     border: none;
-    border-radius: 4px;
     box-shadow: none;
     outline: none;
-    transition: none;
-}}
-button.btnSpotify:hover {{
-    background-color: transparent;
-    background-image: none;
-    box-shadow: none;
-}}
-button.btnSpotify:active {{
-    background-color: transparent;
-    background-image: none;
-    box-shadow: none;
-}}
-button.btnSpotify:focus {{
-    background-color: transparent;
-    background-image: none;
-    box-shadow: none;
-    outline: none;
-}}
-button.btnSpotify:disabled {{
-    background-color: transparent;
-    background-image: none;
-    box-shadow: none;
 }}
 button.btnSpotify label {{
     font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', 'Symbola', sans-serif;
@@ -169,15 +144,10 @@ button.btnSpotify:hover label {{
     color: {COR_DESTAQUE};
 }}
 button.btnSpotify:active label {{
-    color: {COR_BOTOES_SPOTIFY};
     opacity: 0.6;
 }}
 button.btnSpotify:disabled label {{
     color: {COR_TEXTO_APAGADO};
-}}
-button.btnSpotify > * {{
-    background-color: transparent;
-    background-image: none;
 }}
 
 /* Rótulo "Progresso do dia" — um pouco maior que a porcentagem */

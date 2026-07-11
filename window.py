@@ -479,15 +479,29 @@ class WidgetDesktop(Gtk.Window):
             fonte = "Noto Color Emoji,Symbola,DejaVu Sans"
         return f'<span font_family="{fonte}" font_size="13pt">{esc}</span>'
 
+    @staticmethod
+    def _draw_btn_transparente(widget, cr):
+        """Substitui o draw padrão do GTK por fundo totalmente transparente."""
+        try:
+            import cairo
+            cr.set_operator(cairo.OPERATOR_SOURCE)
+        except ImportError:
+            cr.set_operator(1)
+        cr.set_source_rgba(0, 0, 0, 0)
+        cr.paint()
+        child = widget.get_child()
+        if child:
+            widget.propagate_draw(child, cr)
+        return True   # True = não chama o draw padrão (sem background do tema)
+
     def _botao_spotify(self, texto: str, tooltip: str) -> Gtk.Button:
         b = Gtk.Button()
-        ctx = b.get_style_context()
-        ctx.add_class("btnSpotify")
-        ctx.add_class("flat")       # remove decoração padrão do tema GTK
+        b.get_style_context().add_class("btnSpotify")
         b.set_tooltip_text(tooltip)
         b.set_relief(Gtk.ReliefStyle.NONE)
-        b.set_can_focus(False)      # evita o contorno de foco
+        b.set_can_focus(False)
         b.set_sensitive(False)
+        b.connect("draw", self._draw_btn_transparente)
         lbl = Gtk.Label()
         lbl.set_markup(self._icone_markup(texto))
         b.add(lbl)

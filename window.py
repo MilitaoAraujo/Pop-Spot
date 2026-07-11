@@ -841,58 +841,27 @@ class WidgetDesktop(Gtk.Window):
         log.info("Configurações salvas em %s", cfg_path)
 
     def _salvar_e_aplicar(self):
-        """Salva as cores, recarrega os módulos e aplica tudo sem reiniciar."""
-        import importlib, json
+        """Salva as cores e reinicia o processo para aplicar tudo de forma confiável."""
+        try:
+            self._salvar_configuracoes()
+        except Exception as e:
+            log.error("Erro ao salvar configurações: %s", e)
 
-        self._salvar_configuracoes()
         self._config_cores_pendentes.clear()
 
-        # ── 1. Recarrega a cadeia de módulos de config ────────────────────
-        import config.colors as _colors_mod
-        import config        as _config_mod
-        import css           as _css_mod
+        # Reinicia o processo — garante que todas as cores (CSS, Cairo, espectro)
+        # são atualizadas sem estado residual.
+        try:
+            self._espectro.stop()
+        except Exception:
+            pass
 
-        importlib.reload(_colors_mod)
-        importlib.reload(_config_mod)
-        importlib.reload(_css_mod)
-
-        # ── 2. Atualiza variáveis globais deste módulo ────────────────────
-        _g = globals()
-        for _nome in (
-            "COR_DESTAQUE", "COR_TEXTO", "COR_BASE",
-            "COR_BOTOES_SPOTIFY", "COR_SUPERFICIE", "COR_TERCIARIA",
-        ):
-            if hasattr(_config_mod, _nome):
-                _g[_nome] = getattr(_config_mod, _nome)
-
-        # ── 3. Regenera e aplica o CSS ────────────────────────────────────
-        from css import gerar_css as _gerar_css
-        _p = Gtk.CssProvider()
-        _p.load_from_data(_gerar_css())
-        Gtk.StyleContext.add_provider_for_screen(
-            Gdk.Screen.get_default(), _p,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
-        )
-
-        # ── 4. Atualiza cores dos botões Cairo ────────────────────────────
-        _nova_cor = _hex_rgb(_config_mod.COR_BOTOES_SPOTIFY)
-        _nova_bg  = _hex_rgb(_config_mod.COR_SUPERFICIE)
-        for _btn in (self.btn_spotify_prev, self.btn_spotify_play, self.btn_spotify_next):
-            _btn._cor    = _nova_cor
-            _btn._cor_bg = _nova_bg
-            _btn.queue_draw()
-
-        # ── 5. Atualiza espectro ──────────────────────────────────────────
-        self._cores_espectro = _parsear_cores_espectro()
-        if hasattr(self, "espectro_area"):
-            self.espectro_area.queue_draw()
-
-        # ── 6. Força redesenho geral ──────────────────────────────────────
-        self.queue_draw()
-        if hasattr(self, "_raiz"):
-            self._raiz.queue_draw()
-
-        self._stack.set_visible_child_name("widget")
+        if sys.platform == "win32":
+            import subprocess
+            subprocess.Popen([sys.executable] + sys.argv)
+            Gtk.main_quit()
+        else:
+            os.execv(sys.executable, [sys.executable] + sys.argv)
 
     # ── Painel direito do relógio (progresso + calendário) ────────────────
 

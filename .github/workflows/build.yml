@@ -37,7 +37,7 @@ jobs:
 
       - name: Instalar dependencias pip
         shell: msys2 {0}
-        run: pip install pyinstaller pyinstaller-hooks-contrib sounddevice --break-system-packages
+        run: pip install pyinstaller pyinstaller-hooks-contrib soundcard --break-system-packages
 
       - name: Build executavel
         shell: msys2 {0}
@@ -59,7 +59,7 @@ jobs:
             --hidden-import cairo \
             --hidden-import requests \
             --hidden-import numpy \
-            --hidden-import sounddevice \
+            --hidden-import soundcard \
             --add-data "${TYPELIB}:girepository-1.0"
 
       - name: Copiar pasta config

@@ -1,6 +1,6 @@
 # Visualizador de espectro em tempo real via PulseAudio/PipeWire (parec + FFT)
 # Real-time audio spectrum visualizer via PulseAudio/PipeWire (parec + FFT)
-# Windows: usa sounddevice + WASAPI loopback em vez de parec
+# Windows: usa soundcard + WASAPI loopback em vez de parec
 
 import subprocess
 import threading
@@ -99,76 +99,38 @@ class AudioSpectrum:
             pass
         self._running = False
 
-    # ── Backend Windows: sounddevice + WASAPI loopback ────────────────────
+    # ── Backend Windows: soundcard (WASAPI loopback automático) ──────────
 
     def _loop_windows(self, np):
         try:
-            import sounddevice as sd
+            import soundcard as sc
         except ImportError:
-            log.warning("sounddevice não encontrado — espectro desativado. Execute: pip install sounddevice")
+            log.warning("soundcard não encontrado — espectro desativado. "
+                        "Execute: pip install soundcard --break-system-packages")
             self._running = False
             return
 
         try:
-            wasapi = sd.WasapiSettings(loopback=True)
-        except AttributeError:
-            log.warning("sounddevice sem suporte WASAPI — espectro desativado")
+            speaker = sc.default_speaker()
+            mic     = sc.get_microphone(speaker.id, include_loopback=True)
+            log.debug("Espectro soundcard: loopback de '%s'", speaker.name)
+        except Exception as e:
+            log.warning("soundcard loopback não disponível: %s — espectro desativado", e)
             self._running = False
             return
 
-        # Encontra o dispositivo de saída padrão
-        out_idx = sd.default.device[1]
-        if out_idx < 0:
-            for i, dev in enumerate(sd.query_devices()):
-                if dev["max_output_channels"] > 0:
-                    out_idx = i
-                    break
-        if out_idx < 0:
-            log.warning("Nenhum dispositivo de saída encontrado — espectro desativado")
-            self._running = False
-            return
-
-        # Usa a taxa nativa do dispositivo; tenta fallbacks se falhar
-        dev_info   = sd.query_devices(out_idx)
-        taxa_nativa = int(dev_info.get("default_samplerate", 48000))
-        log.debug("Espectro: dispositivo %d (%s), taxa nativa %d Hz",
-                  out_idx, dev_info.get("name", "?"), taxa_nativa)
-
-        stream = None
-        for taxa in (taxa_nativa, 48000, 44100, 22050):
-            for canais in (2, 1):
-                try:
-                    stream = sd.InputStream(
-                        device=out_idx,
-                        samplerate=taxa,
-                        channels=canais,
-                        dtype="int16",
-                        extra_settings=wasapi,
-                        blocksize=CHUNK,
-                    )
-                    log.debug("Espectro WASAPI aberto: %d Hz, %dch", taxa, canais)
-                    break
-                except Exception as e:
-                    log.debug("WASAPI %dHz %dch: %s", taxa, canais, e)
-            if stream is not None:
-                break
-
-        if stream is None:
-            log.warning("WASAPI loopback não disponível em nenhuma configuração — espectro desativado")
-            self._running = False
-            return
-
-        with stream:
-            while self._running:
-                try:
-                    data, _ = stream.read(CHUNK)
-                    # Converte stereo → mono se necessário
-                    if data.ndim > 1:
-                        data = data.mean(axis=1).astype(np.int16)
-                    self._process(data.tobytes(), np)
-                except Exception as e:
-                    log.debug("sounddevice leitura: %s", e)
-                    break
+        try:
+            with mic.recorder(samplerate=RATE, channels=1, blocksize=CHUNK) as rec:
+                while self._running:
+                    try:
+                        data = rec.record(numframes=CHUNK)   # float32 [-1, 1]
+                        pcm  = (np.clip(data.flatten(), -1.0, 1.0) * 32767).astype(np.int16)
+                        self._process(pcm.tobytes(), np)
+                    except Exception as e:
+                        log.debug("soundcard leitura: %s", e)
+                        break
+        except Exception as e:
+            log.warning("soundcard stream: %s", e)
 
         self._running = False
 

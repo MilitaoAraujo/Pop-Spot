@@ -18,6 +18,10 @@ COR_DESTAQUE = "#9b59b6"
 # Solid surface color — Spotify controls and other opaque UI (no glassy rgba).
 COR_SUPERFICIE = "#14141c"
 
+# Cor dos ícones dos botões de controle (play, pause, anterior, próximo).
+# Color of the control button icons (play, pause, previous, next).
+COR_BOTOES_SPOTIFY = COR_DESTAQUE
+
 # Derivações automáticas — não é necessário editar abaixo
 # Automatic derivations — no need to edit below
 

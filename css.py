@@ -5,6 +5,7 @@ from config import (
     COR_DESTAQUE, COR_TEXTO_SECUNDARIO, COR_TEXTO_APAGADO,
     COR_SEPARADOR, TAMANHO_FONTE_HORA,
     COR_SUPERFICIE, COR_SUPERFICIE_HOVER, COR_SUPERFICIE_ACTIVE, COR_SUPERFICIE_APAGADA,
+    COR_BOTOES_SPOTIFY,
 )
 
 
@@ -124,32 +125,31 @@ box.sep {{
     margin-top: 10px;
 }}
 
-/* Botões de controle do Spotify (MPRIS) — fundo opaco (COR_SUPERFICIE) */
+/* Botões de controle do Spotify — fundo transparente, só ícone colorido */
 button.btnSpotify {{
-    min-height: 22px;
-    min-width:  28px;
+    min-height: 28px;
+    min-width:  32px;
     padding: 2px 6px;
-    margin: 0;
-    font-size: 13px;
-    font-family: 'Segoe UI Emoji', 'Noto Color Emoji', 'Segoe UI Symbol', 'Symbola', sans-serif;
-    color: {COR_DESTAQUE};
-    background-color: {COR_SUPERFICIE};
-    border: 1px solid {COR_SEPARADOR};
-    border-radius: 5px;
+    margin: 0 2px;
+    background: transparent;
+    border: none;
     box-shadow: none;
+    outline: none;
 }}
-button.btnSpotify:hover {{
-    background-color: {COR_SUPERFICIE_HOVER};
-    border-color: {COR_DESTAQUE};
+button.btnSpotify label {{
+    font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', 'Symbola', sans-serif;
+    font-size: 16px;
+    color: {COR_BOTOES_SPOTIFY};
 }}
-button.btnSpotify:active {{
-    background-color: {COR_SUPERFICIE_ACTIVE};
-    border-color: {COR_DESTAQUE};
+button.btnSpotify:hover label {{
+    color: {COR_DESTAQUE};
+    opacity: 0.85;
 }}
-button.btnSpotify:disabled {{
+button.btnSpotify:active label {{
+    opacity: 0.6;
+}}
+button.btnSpotify:disabled label {{
     color: {COR_TEXTO_APAGADO};
-    background-color: {COR_SUPERFICIE_APAGADA};
-    border-color: {COR_SEPARADOR};
 }}
 
 /* Rótulo "Progresso do dia" — um pouco maior que a porcentagem */

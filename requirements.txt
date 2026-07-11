@@ -16,7 +16,7 @@
 requests>=2.28.0
 numpy>=1.23.0
 
-# Espectro de áudio no Windows (substitui parec/PulseAudio)
-# Audio spectrum on Windows (replaces parec/PulseAudio)
-sounddevice>=0.4.6; sys_platform == "win32"
+# Espectro de áudio no Windows — loopback WASAPI automático
+# Audio spectrum on Windows — automatic WASAPI loopback
+soundcard>=0.4.2; sys_platform == "win32"
 

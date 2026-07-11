@@ -70,7 +70,7 @@ pyinstaller main.py \
   --hidden-import cairo \
   --hidden-import requests \
   --hidden-import numpy \
-  --hidden-import sounddevice \
+  --hidden-import soundcard \
   --add-data '${typelibSrc}:girepository-1.0'
 "@
 

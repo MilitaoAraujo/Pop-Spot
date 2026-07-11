@@ -59,13 +59,9 @@ $pkgs = @(
 ) -join " "
 MSYS2 "pacman -S --noconfirm $pkgs"
 
-# ── 4. Instalar sounddevice (espectro de audio) ───────────────────────────────
-Step "Instalando sounddevice (espectro de audio)..."
-# Tenta via pacman primeiro; se nao existir, usa pip com --break-system-packages
-$sdResult = & $bash --login -c "export MSYSTEM=MINGW64; source /etc/profile; pacman -S --noconfirm mingw-w64-x86_64-python-sounddevice 2>&1"
-if ($LASTEXITCODE -ne 0) {
-    MSYS2 "pip install sounddevice --break-system-packages"
-}
+# ── 4. Instalar soundcard (espectro de audio via WASAPI loopback) ─────────────
+Step "Instalando soundcard (espectro de audio)..."
+MSYS2 "pip install soundcard --break-system-packages"
 
 # ── 5. Teste rapido ───────────────────────────────────────────────────────────
 Step "Verificando instalacao..."

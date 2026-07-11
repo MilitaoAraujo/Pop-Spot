@@ -469,12 +469,26 @@ class WidgetDesktop(Gtk.Window):
             lbl.set_max_width_chars(30)
         return lbl
 
+    @staticmethod
+    def _icone_markup(texto: str) -> str:
+        """Envolve o texto em Pango markup com fonte emoji para garantir renderização."""
+        esc = GLib.markup_escape_text(texto)
+        if sys.platform == "win32":
+            fonte = "Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji,DejaVu Sans"
+        else:
+            fonte = "Noto Color Emoji,Symbola,DejaVu Sans"
+        return f'<span font_family="{fonte}" font_size="13pt">{esc}</span>'
+
     def _botao_spotify(self, texto: str, tooltip: str) -> Gtk.Button:
-        b = Gtk.Button.new_with_label(texto)
+        b = Gtk.Button()
         b.get_style_context().add_class("btnSpotify")
         b.set_tooltip_text(tooltip)
         b.set_relief(Gtk.ReliefStyle.NONE)
         b.set_sensitive(False)
+        lbl = Gtk.Label()
+        lbl.set_markup(self._icone_markup(texto))
+        b.add(lbl)
+        lbl.show()
         return b
 
     def _separador(self):
@@ -679,8 +693,12 @@ class WidgetDesktop(Gtk.Window):
         for b in (self.btn_spotify_prev, self.btn_spotify_play, self.btn_spotify_next):
             b.set_sensitive(spotify_aberto)
         if dados:
-            self.btn_spotify_play.set_label(
-                ICONE_SPOTIFY_PAUSAR if tocando else ICONE_SPOTIFY_REPRODUZIR)
+            icone_play = ICONE_SPOTIFY_PAUSAR if tocando else ICONE_SPOTIFY_REPRODUZIR
+            lbl_play = self.btn_spotify_play.get_child()
+            if isinstance(lbl_play, Gtk.Label):
+                lbl_play.set_markup(self._icone_markup(icone_play))
+            else:
+                self.btn_spotify_play.set_label(icone_play)
             self.btn_spotify_play.set_tooltip_text(
                 TOOLTIP_SPOTIFY_PAUSE if tocando else TOOLTIP_SPOTIFY_PLAY)
 

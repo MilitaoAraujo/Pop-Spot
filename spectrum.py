@@ -128,27 +128,33 @@ class AudioSpectrum:
             self._running = False
             return
 
-        # Usa a taxa nativa do dispositivo para evitar erros de conversão
-        dev_info  = sd.query_devices(out_idx)
-        taxa      = int(dev_info.get("default_samplerate", RATE))
+        # Usa a taxa nativa do dispositivo; tenta fallbacks se falhar
+        dev_info   = sd.query_devices(out_idx)
+        taxa_nativa = int(dev_info.get("default_samplerate", 48000))
+        log.debug("Espectro: dispositivo %d (%s), taxa nativa %d Hz",
+                  out_idx, dev_info.get("name", "?"), taxa_nativa)
 
         stream = None
-        for canais in (1, 2):
-            try:
-                stream = sd.InputStream(
-                    device=out_idx,
-                    samplerate=taxa,
-                    channels=canais,
-                    dtype="int16",
-                    extra_settings=wasapi,
-                    blocksize=CHUNK,
-                )
+        for taxa in (taxa_nativa, 48000, 44100, 22050):
+            for canais in (2, 1):
+                try:
+                    stream = sd.InputStream(
+                        device=out_idx,
+                        samplerate=taxa,
+                        channels=canais,
+                        dtype="int16",
+                        extra_settings=wasapi,
+                        blocksize=CHUNK,
+                    )
+                    log.debug("Espectro WASAPI aberto: %d Hz, %dch", taxa, canais)
+                    break
+                except Exception as e:
+                    log.debug("WASAPI %dHz %dch: %s", taxa, canais, e)
+            if stream is not None:
                 break
-            except Exception as e:
-                log.debug("WASAPI loopback tentativa %dch: %s", canais, e)
 
         if stream is None:
-            log.warning("WASAPI loopback não disponível — espectro desativado")
+            log.warning("WASAPI loopback não disponível em nenhuma configuração — espectro desativado")
             self._running = False
             return
 

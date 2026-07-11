@@ -60,6 +60,27 @@ def _buscar_linux() -> dict | None:
 
 # ── Backend Windows: título da janela + teclas de mídia (sem pacotes extras) ──
 
+# Cache de capas: (artista_lower, titulo_lower) → url  (evita chamadas repetidas)
+_capa_cache: dict = {}
+
+# Processos conhecidos de media players para fallback (quando Spotify está fechado)
+_MEDIA_PROCS = {
+    "vlc.exe", "mpv.exe", "wmplayer.exe", "musicbee.exe", "foobar2000.exe",
+    "groove.exe", "itunes.exe", "aimp.exe", "winamp.exe", "mpc-hc64.exe",
+    "mpc-hc.exe", "mpc-be64.exe", "mpc-be.exe",
+    "vivaldi.exe", "chrome.exe", "chromium.exe", "firefox.exe",
+    "msedge.exe", "opera.exe", "brave.exe", "waterfox.exe",
+    "discord.exe", "discordptb.exe", "discordcanary.exe",
+}
+
+# Sufixos de browser/plataforma para remover do título de janela
+_SUFIXOS_BROWSER = {
+    "youtube", "youtube music", "spotify", "soundcloud", "deezer", "tidal",
+    "vivaldi", "google chrome", "mozilla firefox", "microsoft edge", "opera",
+    "brave", "chromium", "discord",
+}
+
+
 def _proc_name(pid: int) -> str:
     """Retorna o nome do executável do processo (ex: 'Spotify.exe')."""
     import ctypes
@@ -78,55 +99,112 @@ def _proc_name(pid: int) -> str:
         return ""
 
 
-def _buscar_windows() -> dict | None:
-    """Lê artista/título do Spotify via título da janela Win32.
-    Filtra exclusivamente pelo nome do processo (Spotify.exe)."""
+def _capa_itunes(artista: str, titulo: str) -> str:
+    """Busca URL da capa na iTunes Search API (sem autenticação, gratuita).
+    Resultado fica em cache para evitar chamadas repetidas."""
+    chave = (artista.lower(), titulo.lower())
+    if chave in _capa_cache:
+        return _capa_cache[chave]
     try:
-        import ctypes
-        import ctypes.wintypes
+        resp = requests.get(
+            "https://itunes.apple.com/search",
+            params={"term": f"{artista} {titulo}", "entity": "song", "limit": 1},
+            timeout=5,
+        )
+        data = resp.json()
+        if data.get("resultCount", 0) > 0:
+            url = data["results"][0].get("artworkUrl100", "")
+            url = url.replace("100x100bb", "600x600bb")
+            _capa_cache[chave] = url
+            return url
+    except Exception as e:
+        log.debug("itunes capa: %s", e)
+    _capa_cache[chave] = ""
+    return ""
 
-        encontrado = [None]
-        ENUMPROC = ctypes.WINFUNCTYPE(
-            ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
 
-        def _cb(hwnd, _):
-            try:
-                n = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
-                if n == 0:
-                    return True
-                buf = ctypes.create_unicode_buffer(n + 1)
-                ctypes.windll.user32.GetWindowTextW(hwnd, buf, n + 1)
-                titulo = buf.value.strip()
-                if not titulo or " - " not in titulo:
-                    return True
+def _enumerar_janelas(filtro_proc) -> tuple[str | None, str | None]:
+    """Enumera janelas visíveis e retorna (titulo_janela, proc_name) para a
+    primeira janela cujo título contenha ' - ' e cujo processo passe em filtro_proc."""
+    import ctypes
+    import ctypes.wintypes
 
-                # Só aceita janelas cujo processo seja literalmente Spotify.exe
-                pid = ctypes.wintypes.DWORD()
-                ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-                if _proc_name(pid.value) == "spotify.exe":
-                    encontrado[0] = titulo
-                    return False   # para a enumeração
-            except Exception:
-                pass
-            return True
+    resultado = [None, None]
+    ENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
 
-        ctypes.windll.user32.EnumWindows(ENUMPROC(_cb), 0)
+    def _cb(hwnd, _):
+        try:
+            n = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+            if n == 0:
+                return True
+            buf = ctypes.create_unicode_buffer(n + 1)
+            ctypes.windll.user32.GetWindowTextW(hwnd, buf, n + 1)
+            titulo = buf.value.strip()
+            if not titulo or " - " not in titulo:
+                return True
+            pid = ctypes.wintypes.DWORD()
+            ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            nome = _proc_name(pid.value)
+            if filtro_proc(nome):
+                resultado[0] = titulo
+                resultado[1] = nome
+                return False
+        except Exception:
+            pass
+        return True
 
-        titulo_janela = encontrado[0]
-        if not titulo_janela or " - " not in titulo_janela:
-            return None
+    ctypes.windll.user32.EnumWindows(ENUMPROC(_cb), 0)
+    return resultado[0], resultado[1]
 
+
+def _buscar_windows() -> dict | None:
+    """1) Procura Spotify.exe. 2) Fallback: qualquer media player ativo."""
+
+    # ── Spotify ────────────────────────────────────────────────────────────
+    titulo_janela, _ = _enumerar_janelas(lambda p: p == "spotify.exe")
+    if titulo_janela and " - " in titulo_janela:
         artista, titulo = titulo_janela.split(" - ", 1)
+        artista = artista.strip()
+        titulo  = titulo.strip()
+        capa    = _capa_itunes(artista, titulo)
         return {
             "status":  "Playing",
-            "titulo":  titulo.strip(),
-            "artista": artista.strip(),
+            "fonte":   "Spotify",
+            "titulo":  titulo,
+            "artista": artista,
             "album":   "",
-            "capa":    "",
+            "capa":    capa,
         }
-    except Exception as e:
-        log.debug("buscar_windows: %s", e)
+
+    # ── Fallback: outro player ─────────────────────────────────────────────
+    titulo_janela, proc = _enumerar_janelas(lambda p: p in _MEDIA_PROCS)
+    if not titulo_janela or " - " not in titulo_janela:
         return None
+
+    # Remove sufixos de plataforma/browser do título
+    # Ex: "Fly-day Chinatown - YouTube - Vivaldi" → artista="Fly-day Chinatown", titulo="YouTube"
+    partes = [p.strip() for p in titulo_janela.split(" - ")]
+    partes_uteis = [p for p in partes if p.lower() not in _SUFIXOS_BROWSER]
+    if len(partes_uteis) >= 2:
+        titulo  = partes_uteis[0]
+        artista = partes_uteis[1]
+    elif partes_uteis:
+        titulo  = partes_uteis[0]
+        artista = ""
+    else:
+        titulo  = partes[0]
+        artista = partes[1] if len(partes) > 1 else ""
+
+    fonte = (proc or "").replace(".exe", "").capitalize()
+    capa  = _capa_itunes(artista, titulo) if artista else ""
+    return {
+        "status":  "Playing",
+        "fonte":   fonte,
+        "titulo":  titulo,
+        "artista": artista,
+        "album":   fonte,
+        "capa":    capa,
+    }
 
 
 def _comando_windows(metodo: str) -> bool:

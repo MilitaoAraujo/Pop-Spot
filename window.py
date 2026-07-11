@@ -686,9 +686,15 @@ class WidgetDesktop(Gtk.Window):
 
         self.lbl_sem_musica.set_visible(not spotify_aberto)
         if dados:
-            self.lbl_cabecalho_spotify.set_text(TEXTO_PAUSADO if pausado else TEXTO_TOCANDO)
+            fonte = dados.get("fonte", "Spotify")
+            if pausado:
+                cabecalho = TEXTO_PAUSADO
+            elif fonte == "Spotify":
+                cabecalho = TEXTO_TOCANDO
+            else:
+                cabecalho = fonte.upper()
+            self.lbl_cabecalho_spotify.set_text(cabecalho)
         else:
-            # Spotify fechado: mostra a última música conhecida (cabeçalho apagado)
             self.lbl_cabecalho_spotify.set_text("")
 
         if tocando or pausado:

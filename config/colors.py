@@ -1,27 +1,32 @@
-# ══════════════════════════════════════════════════════════════════════════════
-#  CORES DO WIDGET  —  edite os valores hex abaixo para personalizar
-#  Dica: passe o mouse sobre um "#rrggbb" para abrir o seletor de cor do editor
-# ══════════════════════════════════════════════════════════════════════════════
+# Lê as cores do arquivo colors.css (edite lá — tem seletor de cor nativo)
+import re as _re
+from pathlib import Path as _Path
 
-# COR PRIMÁRIA — fundo principal do widget
-COR_BASE       = "#0c0c12"
+def _ler_css() -> dict:
+    """Extrai variáveis CSS custom properties de colors.css."""
+    css_path = _Path(__file__).parent / "colors.css"
+    if not css_path.exists():
+        return {}
+    texto = css_path.read_text("utf-8")
+    return {
+        m.group(1).strip(): m.group(2).strip()
+        for m in _re.finditer(r"--([^:]+):\s*(#[0-9a-fA-F]{3,8})", texto)
+    }
 
-# Superfície dos botões de controle (play/pause/skip) — fundo sólido
-COR_SUPERFICIE = "#14141c"
+_CSS = _ler_css()
 
-# Cor do texto principal
-COR_TEXTO      = "#e0e0e0"
+def _c(chave: str, padrao: str) -> str:
+    return _CSS.get(chave, padrao)
 
-# COR SECUNDÁRIA — destaques, títulos, cidade, nome da música (elementos roxos)
-COR_DESTAQUE   = "#9b59b6"
+# ── Cores principais (editáveis em colors.css) ─────────────────────────────
+COR_BASE       = _c("cor-base",       "#0c0c12")
+COR_SUPERFICIE = _c("cor-superficie", "#14141c")
+COR_TEXTO      = _c("cor-texto",      "#e0e0e0")
+COR_DESTAQUE   = _c("cor-destaque",   "#9b59b6")
+COR_TERCIARIA  = _c("cor-terciaria",  "#9b59b6")
+COR_BOTOES_SPOTIFY = _c("cor-botoes", COR_DESTAQUE)
 
-# COR TERCIÁRIA — espectro de áudio e temperatura
-COR_TERCIARIA  = "#9b59b6"
-
-# Ícones dos botões de controle (play, pause, anterior, próximo)
-COR_BOTOES_SPOTIFY = COR_DESTAQUE
-
-# ── Derivações automáticas — não editar abaixo ─────────────────────────────
+# ── Derivações automáticas ─────────────────────────────────────────────────
 
 def _hex_para_rgb(cor: str) -> tuple[int, int, int]:
     h = cor.lstrip("#")
@@ -32,13 +37,12 @@ def _rgba(cor: str, alpha: float) -> str:
     return f"rgba({r}, {g}, {b}, {alpha})"
 
 def _misturar(cor: str, alvo: str, t: float) -> str:
-    """Interpola RGB de `cor` em direção a `alvo` (t=0 → cor, t=1 → alvo)."""
     r1, g1, b1 = _hex_para_rgb(cor)
     r2, g2, b2 = _hex_para_rgb(alvo)
     r = int(round(r1 + (r2 - r1) * t))
     g = int(round(g1 + (g2 - g1) * t))
     b = int(round(b1 + (b2 - b1) * t))
-    return f"#{max(0, min(255, r)):02x}{max(0, min(255, g)):02x}{max(0, min(255, b)):02x}"
+    return f"#{max(0,min(255,r)):02x}{max(0,min(255,g)):02x}{max(0,min(255,b)):02x}"
 
 
 RAIO_BORDA           = 20

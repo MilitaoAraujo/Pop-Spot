@@ -199,7 +199,10 @@ class WidgetDesktop(Gtk.Window):
         self._hwnd_win32             = None   # handle Win32, usado no Windows
 
         _cfg = Path(__file__).parent / "config"
-        self._config_arquivos = [p for p in _cfg.glob("*.py") if not p.name.startswith("_")]
+        self._config_arquivos = (
+            [p for p in _cfg.glob("*.py") if not p.name.startswith("_")]
+            + [p for p in _cfg.glob("*.css")]
+        )
         self._config_mtimes   = {p: p.stat().st_mtime for p in self._config_arquivos}
 
         self._aplicar_css()

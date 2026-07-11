@@ -203,35 +203,5 @@ progressbar.barDia trough progress {{
     padding: 0px 2px;
 }}
 
-/* ── Tela de Configurações ─────────────────────────────────────────────── */
-.paginaConfig {{
-    background: {COR_FUNDO};
-    border-radius: {RAIO_BORDA}px;
-}}
 
-.configTitulo {{
-    font-size: 16px;
-    font-weight: 600;
-    color: {COR_TEXTO_PRIMARIO};
-}}
-
-.configRotulo {{
-    font-size: 13px;
-    font-weight: 500;
-    color: {COR_TEXTO_PRIMARIO};
-}}
-
-.configDescricao {{
-    font-size: 11px;
-    color: {COR_TEXTO_APAGADO};
-}}
-
-colorbutton {{
-    min-width: 38px;
-    min-height: 26px;
-    border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    box-shadow: none;
-    padding: 2px 6px;
-}}
 """.encode()

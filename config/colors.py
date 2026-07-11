@@ -1,33 +1,27 @@
-# Cores do widget — edite as variáveis abaixo (hexadecimal, ex: "#1a2b3c")
-# Widget colors — edit the variables below (hex, e.g. "#1a2b3c")
+# ══════════════════════════════════════════════════════════════════════════════
+#  CORES DO WIDGET  —  edite os valores hex abaixo para personalizar
+#  Dica: passe o mouse sobre um "#rrggbb" para abrir o seletor de cor do editor
+# ══════════════════════════════════════════════════════════════════════════════
 
-# Cor de fundo — o tom mais escuro do widget
-# Background color — the darkest tone of the widget
-COR_BASE     = "#0c0c12"
+# COR PRIMÁRIA — fundo principal do widget
+COR_BASE       = "#0c0c12"
 
-# Cor do texto principal — o tom mais claro
-# Main text color — the lightest tone
-COR_TEXTO    = "#e0e0e0"
-
-# Cor de destaque — usada em títulos e elementos realçados
-# Accent color — used on titles and highlighted elements
-COR_DESTAQUE = "#9b59b6"
-
-# Cor de superfície sólida — botões do Spotify e outras áreas que não devem
-# ficar transparentes (fundo opaco, sem rgba “vidro”).
-# Solid surface color — Spotify controls and other opaque UI (no glassy rgba).
+# Superfície dos botões de controle (play/pause/skip) — fundo sólido
 COR_SUPERFICIE = "#14141c"
 
-# Cor dos ícones dos botões de controle (play, pause, anterior, próximo).
-# Color of the control button icons (play, pause, previous, next).
+# Cor do texto principal
+COR_TEXTO      = "#e0e0e0"
+
+# COR SECUNDÁRIA — destaques, títulos, cidade, nome da música (elementos roxos)
+COR_DESTAQUE   = "#9b59b6"
+
+# COR TERCIÁRIA — espectro de áudio e temperatura
+COR_TERCIARIA  = "#9b59b6"
+
+# Ícones dos botões de controle (play, pause, anterior, próximo)
 COR_BOTOES_SPOTIFY = COR_DESTAQUE
 
-# Cor terciária — espectro de áudio e temperatura.
-# Tertiary color — audio spectrum and temperature display.
-COR_TERCIARIA = COR_DESTAQUE
-
-# Derivações automáticas — não é necessário editar abaixo
-# Automatic derivations — no need to edit below
+# ── Derivações automáticas — não editar abaixo ─────────────────────────────
 
 def _hex_para_rgb(cor: str) -> tuple[int, int, int]:
     h = cor.lstrip("#")
@@ -36,7 +30,6 @@ def _hex_para_rgb(cor: str) -> tuple[int, int, int]:
 def _rgba(cor: str, alpha: float) -> str:
     r, g, b = _hex_para_rgb(cor)
     return f"rgba({r}, {g}, {b}, {alpha})"
-
 
 def _misturar(cor: str, alvo: str, t: float) -> str:
     """Interpola RGB de `cor` em direção a `alvo` (t=0 → cor, t=1 → alvo)."""
@@ -57,43 +50,6 @@ COR_TEXTO_SECUNDARIO = _rgba(COR_TEXTO, 0.60)
 COR_TEXTO_APAGADO    = _rgba(COR_TEXTO, 0.28)
 COR_SEPARADOR        = COR_TEXTO_SECUNDARIO
 
-# Variações de COR_SUPERFICIE (GTK3 não aceita `filter` no CSS dos botões)
 COR_SUPERFICIE_HOVER   = _misturar(COR_SUPERFICIE, "#ffffff", 0.10)
 COR_SUPERFICIE_ACTIVE  = _misturar(COR_SUPERFICIE, "#000000", 0.14)
 COR_SUPERFICIE_APAGADA = _misturar(COR_SUPERFICIE, "#000000", 0.10)
-
-
-def _recalcular_derivadas():
-    """Recalcula todas as variáveis derivadas após carregar user_settings.json."""
-    global COR_FUNDO, COR_HORA, COR_DATA, COR_TEXTO_PRIMARIO
-    global COR_TEXTO_SECUNDARIO, COR_TEXTO_APAGADO, COR_SEPARADOR
-    global COR_BOTOES_SPOTIFY, COR_SUPERFICIE_HOVER, COR_SUPERFICIE_ACTIVE
-    global COR_SUPERFICIE_APAGADA
-    COR_FUNDO            = _rgba(COR_BASE, 0.93)
-    COR_HORA             = COR_TEXTO
-    COR_DATA             = _rgba(COR_TEXTO, 0.45)
-    COR_TEXTO_PRIMARIO   = COR_TEXTO
-    COR_TEXTO_SECUNDARIO = _rgba(COR_TEXTO, 0.60)
-    COR_TEXTO_APAGADO    = _rgba(COR_TEXTO, 0.28)
-    COR_SEPARADOR        = COR_TEXTO_SECUNDARIO
-    COR_BOTOES_SPOTIFY   = COR_DESTAQUE
-    COR_SUPERFICIE_HOVER   = _misturar(COR_SUPERFICIE, "#ffffff", 0.10)
-    COR_SUPERFICIE_ACTIVE  = _misturar(COR_SUPERFICIE, "#000000", 0.14)
-    COR_SUPERFICIE_APAGADA = _misturar(COR_SUPERFICIE, "#000000", 0.10)
-
-
-# ── Carregar personalizações do usuário ────────────────────────────────────────
-from pathlib import Path as _Path
-import json as _json
-
-_CFG_USR = _Path(__file__).parent / "user_settings.json"
-if _CFG_USR.exists():
-    try:
-        _u = _json.loads(_CFG_USR.read_text("utf-8"))
-        COR_BASE       = _u.get("COR_BASE",       COR_BASE)
-        COR_DESTAQUE   = _u.get("COR_DESTAQUE",   COR_DESTAQUE)
-        COR_TERCIARIA  = _u.get("COR_TERCIARIA",  COR_TERCIARIA)
-        COR_SUPERFICIE = _u.get("COR_SUPERFICIE", COR_SUPERFICIE)
-        _recalcular_derivadas()
-    except Exception:
-        pass

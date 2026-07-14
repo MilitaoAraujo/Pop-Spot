@@ -23,7 +23,7 @@ from config import (
     ICONE_CLIMA_PADRAO, TEXTO_BUSCANDO_CLIMA, TEXTO_SEM_CONEXAO, FORMATO_VENTO_UMIDADE,
     UNIDADE_TEMPERATURA, DIAS_SEMANA, TEXTO_PROGRESSO_DIA,
 )
-from config import COR_DESTAQUE, COR_TEXTO, COR_BASE, COR_BOTOES_SPOTIFY, COR_SUPERFICIE, COR_TERCIARIA
+from config import COR_DESTAQUE, COR_TEXTO, COR_BASE, COR_BOTOES_SPOTIFY, COR_SUPERFICIE
 from css     import gerar_css
 import weather  as mod_clima
 import spotify  as mod_spotify
@@ -172,7 +172,7 @@ def _parsear_cores_espectro():
     def _hex(c):
         h = c.lstrip("#")
         return int(h[0:2], 16) / 255, int(h[2:4], 16) / 255, int(h[4:6], 16) / 255
-    return _hex(COR_BASE), _hex(COR_TEXTO), _hex(COR_TERCIARIA)
+    return _hex(COR_BASE), _hex(COR_TEXTO), _hex(COR_DESTAQUE)
 
 
 def _sessao_cosmic() -> bool:
@@ -187,22 +187,18 @@ def _sessao_cosmic() -> bool:
 class WidgetDesktop(Gtk.Window):
     def __init__(self):
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
-        self._url_capa_atual         = None
-        self._ls                     = None
-        self._pos_x                  = 0
-        self._pos_y                  = 0
-        self._spotify_ocupado        = False
-        self._altura_atual           = 800
-        self._espectro               = AudioSpectrum()
-        self._cal_dia                = -1
-        self._cores_espectro         = _parsear_cores_espectro()
-        self._hwnd_win32             = None   # handle Win32, usado no Windows
+        self._url_capa_atual  = None
+        self._ls              = None
+        self._pos_x           = 0
+        self._pos_y           = 0
+        self._spotify_ocupado = False
+        self._altura_atual    = 800
+        self._espectro        = AudioSpectrum()
+        self._cal_dia         = -1
+        self._cores_espectro  = _parsear_cores_espectro()
 
         _cfg = Path(__file__).parent / "config"
-        self._config_arquivos = (
-            [p for p in _cfg.glob("*.py") if not p.name.startswith("_")]
-            + [p for p in _cfg.glob("*.css")]
-        )
+        self._config_arquivos = [p for p in _cfg.glob("*.py") if not p.name.startswith("_")]
         self._config_mtimes   = {p: p.stat().st_mtime for p in self._config_arquivos}
 
         self._aplicar_css()
@@ -252,107 +248,6 @@ class WidgetDesktop(Gtk.Window):
 
     def _ao_realizar(self, *_args):
         GLib.idle_add(self._aplicar_input_shape)
-        if sys.platform == "win32":
-            # Aguarda 800ms para garantir que a janela está completamente visível
-            GLib.timeout_add(800, self._ocultar_taskbar_windows)
-            self.connect("focus-in-event", self._on_foco_win32)
-
-    def _ocultar_taskbar_windows(self):
-        """Remove o widget da taskbar/Alt+Tab e o mantém abaixo de todas as
-        janelas via Win32 API.  Chamado uma vez após realize; o timer
-        _manter_abaixo_win32 reforça o keep-below a cada 500 ms."""
-        try:
-            import ctypes
-            import ctypes.wintypes
-            import os as _os
-
-            GWL_EXSTYLE      = -20
-            WS_EX_TOOLWINDOW = 0x00000080
-            WS_EX_APPWINDOW  = 0x00040000
-
-            hwnd = None
-
-            # Tentativa 1: via GdkWin32
-            gdk_win = self.get_window()
-            if gdk_win:
-                try:
-                    gi.require_version("GdkWin32", "3.0")
-                    from gi.repository import GdkWin32
-                    hwnd = GdkWin32.Win32Window.get_handle(gdk_win)
-                except Exception:
-                    pass
-
-            # Tentativa 2: enumera janelas visíveis do nosso processo
-            if not hwnd:
-                pid   = _os.getpid()
-                found = []
-                CBTYPE = ctypes.WINFUNCTYPE(
-                    ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
-                def _cb(h, _):
-                    d = ctypes.wintypes.DWORD()
-                    ctypes.windll.user32.GetWindowThreadProcessId(h, ctypes.byref(d))
-                    if d.value == pid and ctypes.windll.user32.IsWindowVisible(h):
-                        found.append(h)
-                    return True
-                ctypes.windll.user32.EnumWindows(CBTYPE(_cb), 0)
-                if found:
-                    hwnd = found[0]
-
-            if not hwnd:
-                return False
-
-            self._hwnd_win32 = hwnd
-
-            # Aplica estilos Win32:
-            #   WS_EX_TOOLWINDOW  → sem taskbar / Alt+Tab
-            #   WS_EX_NOACTIVATE  → cliques não ativam a janela (evita escurecer)
-            GWL_EXSTYLE        = -20
-            WS_EX_TOOLWINDOW   = 0x00000080
-            WS_EX_APPWINDOW    = 0x00040000
-            WS_EX_NOACTIVATE   = 0x08000000
-            SWP_NOMOVE         = 0x0002
-            SWP_NOSIZE         = 0x0001
-            SWP_NOZORDER       = 0x0004
-            SWP_FRAMECHANGED   = 0x0020
-
-            style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-            style = (style | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE) & ~WS_EX_APPWINDOW
-            ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
-            ctypes.windll.user32.SetWindowPos(
-                hwnd, 0, 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED,
-            )
-
-            # Posiciona atrás de todas as janelas (desktop widget)
-            self._manter_abaixo_win32()
-
-            log.debug("Win32: TOOLWINDOW + FRAMECHANGED + HWND_BOTTOM (hwnd=%s)", hwnd)
-        except Exception as e:
-            log.debug("ocultar_taskbar_windows: %s", e)
-        return False
-
-    def _manter_abaixo_win32(self):
-        """Empurra o widget para trás de todas as janelas (HWND_BOTTOM)."""
-        if not self._hwnd_win32:
-            return False
-        try:
-            import ctypes
-            HWND_BOTTOM    = 1
-            SWP_NOMOVE     = 0x0002
-            SWP_NOSIZE     = 0x0001
-            SWP_NOACTIVATE = 0x0010
-            ctypes.windll.user32.SetWindowPos(
-                self._hwnd_win32, HWND_BOTTOM, 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-            )
-        except Exception as e:
-            log.debug("manter_abaixo_win32: %s", e)
-        return False
-
-    def _on_foco_win32(self, *_args):
-        """Quando o widget recebe foco acidentalmente, volta para o fundo."""
-        GLib.idle_add(self._manter_abaixo_win32)
-        return False
 
     def _aplicar_input_shape(self):
         if not self._ls:
@@ -729,12 +624,7 @@ class WidgetDesktop(Gtk.Window):
         if any(p.stat().st_mtime != self._config_mtimes[p] for p in self._config_arquivos):
             log.warning("Configuração alterada — reiniciando")
             self._espectro.stop()
-            if sys.platform == "win32":
-                import subprocess
-                subprocess.Popen([sys.executable] + sys.argv)
-                Gtk.main_quit()
-            else:
-                os.execv(sys.executable, [sys.executable] + sys.argv)
+            os.execv(sys.executable, [sys.executable] + sys.argv)
         return True
 
     # ── Relógio ───────────────────────────────────────────────────────────

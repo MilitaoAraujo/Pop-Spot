@@ -5,7 +5,7 @@ from config import (
     COR_DESTAQUE, COR_TEXTO_SECUNDARIO, COR_TEXTO_APAGADO,
     COR_SEPARADOR, TAMANHO_FONTE_HORA,
     COR_SUPERFICIE, COR_SUPERFICIE_HOVER, COR_SUPERFICIE_ACTIVE, COR_SUPERFICIE_APAGADA,
-    COR_BOTOES_SPOTIFY, COR_TERCIARIA,
+    COR_BOTOES_SPOTIFY,
 )
 
 
@@ -63,7 +63,7 @@ box.sep {{
 .temperaturaClima {{
     font-size: 30px;
     font-weight: 300;
-    color: {COR_TERCIARIA};
+    color: {COR_TEXTO_PRIMARIO};
     margin-left: 6px;
 }}
 

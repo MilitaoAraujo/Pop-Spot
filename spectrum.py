@@ -1,26 +1,23 @@
 # Visualizador de espectro em tempo real via PulseAudio/PipeWire (parec + FFT)
-# Real-time audio spectrum visualizer via PulseAudio/PipeWire (parec + FFT)
-# Windows: usa soundcard + WASAPI loopback em vez de parec
 
 import subprocess
 import threading
 import logging
-import sys
 
 log = logging.getLogger("widget.spectrum")
 
 N_BARS = 16
-RATE   = 22050  # 22 kHz is enough for a music spectrum
+RATE   = 22050
 CHUNK  = 1024
-DECAY  = 0.55   # suavização das barras / bar smoothing (0 = instant, 1 = no response)
+DECAY  = 0.55
 
 
 class AudioSpectrum:
     def __init__(self):
-        self._bars    = [0.0] * N_BARS
-        self._lock    = threading.Lock()
-        self._proc    = None   # usado apenas no backend Linux (parec)
-        self._running = False
+        self._bars       = [0.0] * N_BARS
+        self._lock       = threading.Lock()
+        self._proc       = None
+        self._running    = False
         self._start_lock = threading.Lock()
 
     def start(self):
@@ -56,14 +53,6 @@ class AudioSpectrum:
             self._running = False
             return
 
-        if sys.platform == "win32":
-            self._loop_windows(np)
-        else:
-            self._loop_linux(np)
-
-    # ── Backend Linux: parec (PulseAudio / PipeWire) ──────────────────────
-
-    def _loop_linux(self, np):
         try:
             self._proc = subprocess.Popen(
                 [
@@ -97,41 +86,6 @@ class AudioSpectrum:
             self._proc.wait()
         except Exception:
             pass
-        self._running = False
-
-    # ── Backend Windows: soundcard (WASAPI loopback automático) ──────────
-
-    def _loop_windows(self, np):
-        try:
-            import soundcard as sc
-        except ImportError:
-            log.warning("soundcard não encontrado — espectro desativado. "
-                        "Execute: pip install soundcard --break-system-packages")
-            self._running = False
-            return
-
-        try:
-            speaker = sc.default_speaker()
-            mic     = sc.get_microphone(speaker.id, include_loopback=True)
-            log.debug("Espectro soundcard: loopback de '%s'", speaker.name)
-        except Exception as e:
-            log.warning("soundcard loopback não disponível: %s — espectro desativado", e)
-            self._running = False
-            return
-
-        try:
-            with mic.recorder(samplerate=RATE, channels=1, blocksize=CHUNK) as rec:
-                while self._running:
-                    try:
-                        data = rec.record(numframes=CHUNK)   # float32 [-1, 1]
-                        pcm  = (np.clip(data.flatten(), -1.0, 1.0) * 32767).astype(np.int16)
-                        self._process(pcm.tobytes(), np)
-                    except Exception as e:
-                        log.debug("soundcard leitura: %s", e)
-                        break
-        except Exception as e:
-            log.warning("soundcard stream: %s", e)
-
         self._running = False
 
     def _process(self, raw: bytes, np):

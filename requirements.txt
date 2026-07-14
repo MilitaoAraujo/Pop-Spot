@@ -1,22 +1,10 @@
-# Pop-Spot — dependências Python / Python dependencies
+# Pop-Spot — dependências Python
 #
 # Instale com: pip install -r requirements.txt
-# Install with: pip install -r requirements.txt
 #
-# Pacotes de sistema necessários (não instaláveis via pip):
-# System packages required (not installable via pip):
-#
-#   Linux (Debian/Ubuntu):
-#     sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0 \
-#                      gir1.2-gdkpixbuf-2.0 python3-dbus pulseaudio-utils
-#
-#   Windows (MSYS2 MinGW64 — veja install_windows.ps1):
-#     pacman -S mingw-w64-x86_64-python-gobject mingw-w64-x86_64-gtk3
+# Pacotes de sistema necessários (Debian/Ubuntu):
+#   sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0 \
+#                    gir1.2-gdkpixbuf-2.0 python3-dbus pulseaudio-utils
 
 requests>=2.28.0
 numpy>=1.23.0
-
-# Espectro de áudio no Windows — loopback WASAPI automático
-# Audio spectrum on Windows — automatic WASAPI loopback
-soundcard>=0.4.2; sys_platform == "win32"
-

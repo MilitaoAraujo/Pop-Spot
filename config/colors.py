@@ -1,32 +1,22 @@
-# Lê as cores do arquivo colors.css (edite lá — tem seletor de cor nativo)
-import re as _re
-from pathlib import Path as _Path
+# Cores do widget — edite os valores abaixo para personalizar
+# Widget colors — edit the values below to customize
 
-def _ler_css() -> dict:
-    """Extrai variáveis CSS custom properties de colors.css."""
-    css_path = _Path(__file__).parent / "colors.css"
-    if not css_path.exists():
-        return {}
-    texto = css_path.read_text("utf-8")
-    return {
-        m.group(1).strip(): m.group(2).strip()
-        for m in _re.finditer(r"--([^:]+):\s*(#[0-9a-fA-F]{3,8})", texto)
-    }
+# Fundo principal do widget
+COR_BASE       = "#0c0c12"
 
-_CSS = _ler_css()
+# Superfície dos botões (play/pause/skip)
+COR_SUPERFICIE = "#14141c"
 
-def _c(chave: str, padrao: str) -> str:
-    return _CSS.get(chave, padrao)
+# Texto principal
+COR_TEXTO      = "#e0e0e0"
 
-# ── Cores principais (editáveis em colors.css) ─────────────────────────────
-COR_BASE       = _c("cor-base",       "#0c0c12")
-COR_SUPERFICIE = _c("cor-superficie", "#14141c")
-COR_TEXTO      = _c("cor-texto",      "#e0e0e0")
-COR_DESTAQUE   = _c("cor-destaque",   "#9b59b6")
-COR_TERCIARIA  = _c("cor-terciaria",  "#9b59b6")
-COR_BOTOES_SPOTIFY = _c("cor-botoes", COR_DESTAQUE)
+# Cor de destaque — títulos, cidade, nome da música
+COR_DESTAQUE   = "#9b59b6"
 
-# ── Derivações automáticas ─────────────────────────────────────────────────
+# Ícones dos botões de controle
+COR_BOTOES_SPOTIFY = COR_DESTAQUE
+
+# ── Derivações automáticas — não editar abaixo ────────────────────────────
 
 def _hex_para_rgb(cor: str) -> tuple[int, int, int]:
     h = cor.lstrip("#")

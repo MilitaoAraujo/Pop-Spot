@@ -1,32 +1,19 @@
 #!/usr/bin/env python3
 # Widget de Desktop — Relógio, Clima e Spotify
-# Desktop Widget — Clock, Weather and Spotify
 #
 # Para personalizar, edite os arquivos em config/:
-# To customize, edit the files inside config/:
+#   config/colors.py      — cores e cantos arredondados
+#   config/layout.py      — tamanho, posição e fontes
+#   config/general.py     — cidade do clima e intervalos
+#   config/personalizar.py — cidade, textos, unidade, dias
 #
-#   config/colors.py   — cores e cantos arredondados / colors and rounded corners
-#   config/layout.py   — tamanho, posição e fontes / size, position and fonts
-#   config/general.py  — cidade do clima e intervalos / weather city and intervals
-#   config/personalizar.py — cidade, textos, unidade, dias / city, texts, unit, weekdays
-#
-# Dependências / Dependencies:
-#   python3-gi, python3-dbus, python3-requests, python3-numpy, gtk-layer-shell
+# Dependências:
+#   python3-gi, python3-dbus, python3-requests, python3-numpy
+#   pulseaudio-utils (para o espectro de áudio)
+#   gtk-layer-shell (opcional, para Wayland)
 
 import sys
 import os
-
-# No Windows, define DPI awareness antes do GTK inicializar para evitar
-# renderização borrada em monitores HiDPI.
-if sys.platform == "win32":
-    import ctypes
-    try:
-        ctypes.windll.shcore.SetProcessDpiAwareness(2)   # PROCESS_PER_MONITOR_DPI_AWARE
-    except Exception:
-        try:
-            ctypes.windll.user32.SetProcessDPIAware()
-        except Exception:
-            pass
 
 import gi
 gi.require_version("Gtk", "3.0")

@@ -1,9 +1,10 @@
-# Intervalos de atualização / Update intervals
+# Intervalos de atualização
 
-# Intervalo de atualização do clima em segundos (padrão: 10 minutos)
-# Weather update interval in seconds (default: 10 minutes)
+# Clima em segundos (padrão: 10 minutos)
 ATUALIZAR_CLIMA_SEG = 600
 
-# Intervalo de atualização do Spotify em segundos
-# Spotify update interval in seconds
+# Cache local: se a rede falhar, reutiliza previsão até este limite
+CACHE_CLIMA_MAX_SEG = 21600  # 6 horas
+
+# Spotify em segundos
 ATUALIZAR_SPOTIFY_SEG = 3

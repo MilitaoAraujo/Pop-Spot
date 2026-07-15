@@ -1,5 +1,8 @@
 # Temporarios gerados pelos scripts
 _teste_gtk.py
+config/.widget_pos
+config/.weather_cache.json
+config/.chuva_notify.json
 
 # Build / PyInstaller
 dist/

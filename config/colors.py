@@ -2,19 +2,29 @@
 # Widget colors — edit the values below to customize
 
 # Fundo principal do widget
-COR_BASE       = "#0c0c12"
+COR_BASE       = "#101010"
 
 # Superfície dos botões (play/pause/skip)
-COR_SUPERFICIE = "#14141c"
+COR_SUPERFICIE = "#1c1c1c"
 
-# Texto principal
-COR_TEXTO      = "#e0e0e0"
+# Texto principal (hora, temperatura)
+COR_TEXTO      = "#f0f0f0"
 
-# Cor de destaque — títulos, cidade, nome da música
-COR_DESTAQUE   = "#9b59b6"
+# Texto secundário — descrição do clima, artista, dia da semana,
+# dias do calendário, progresso do dia
+COR_TEXTO_SECUNDARIO = "#9a9a9a"
 
-# Ícones dos botões de controle
-COR_BOTOES_SPOTIFY = COR_DESTAQUE
+# Texto terciário — vento/umidade, álbum
+COR_TEXTO_TERCIARIO  = "#555555"
+
+# Cor de destaque — títulos, cidade, nome da música, hoje no calendário
+COR_DESTAQUE   = "#d0d0d0"
+
+# Ícones dos botões de controle (pode ser igual ao destaque)
+COR_BOTOES_SPOTIFY = "#d0d0d0"
+
+# Opacidade do fundo do widget (0.0 = invisível, 1.0 = opaco)
+OPACIDADE_FUNDO = 1.00
 
 # ── Derivações automáticas — não editar abaixo ────────────────────────────
 
@@ -36,12 +46,10 @@ def _misturar(cor: str, alvo: str, t: float) -> str:
 
 
 RAIO_BORDA           = 20
-COR_FUNDO            = _rgba(COR_BASE, 0.93)
+COR_FUNDO            = _rgba(COR_BASE, max(0.0, min(1.0, float(OPACIDADE_FUNDO))))
 COR_HORA             = COR_TEXTO
-COR_DATA             = _rgba(COR_TEXTO, 0.45)
 COR_TEXTO_PRIMARIO   = COR_TEXTO
-COR_TEXTO_SECUNDARIO = _rgba(COR_TEXTO, 0.60)
-COR_TEXTO_APAGADO    = _rgba(COR_TEXTO, 0.28)
+COR_TEXTO_APAGADO    = COR_TEXTO_TERCIARIO
 COR_SEPARADOR        = COR_TEXTO_SECUNDARIO
 
 COR_SUPERFICIE_HOVER   = _misturar(COR_SUPERFICIE, "#ffffff", 0.10)

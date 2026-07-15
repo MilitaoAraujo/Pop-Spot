@@ -1,13 +1,19 @@
 # Tamanho e posição do widget
 
-# Largura em pixels
+# Tamanhos-base (em escala 1.00). Não precisa editar — use ESCALA.
 LARGURA = 270
+TAMANHO_CAPA = 170
+TAMANHO_FONTE_HORA = 68
 
-# Espaço da borda direita da tela
+# Escala do widget (0.80–1.30). Ajusta largura, fontes, botões e ícones juntos.
+ESCALA = 0.80
+
+# Lado da tela: "direita" ou "esquerda" (quando POS_X/POS_Y = -1)
+LADO = "esquerda"
+
+# Espaço da borda da tela
 MARGEM_DIREITA = 24
 
-# Tamanho da capa do álbum em pixels (quadrado)
-TAMANHO_CAPA = 170
-
-# Tamanho da fonte dos números da hora
-TAMANHO_FONTE_HORA = 68
+# Posição manual (-1 = automática pelo LADO / centro vertical)
+POS_X = -1
+POS_Y = -1

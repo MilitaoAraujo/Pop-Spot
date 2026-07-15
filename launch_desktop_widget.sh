@@ -57,11 +57,44 @@ if [[ -z "${WAYLAND_DISPLAY:-}" ]]; then
   done
 fi
 
-if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+# Com GtkLayerShell: Wayland (fora da taskbar; sem borda SSD).
+# Sem layer-shell: X11/XWayland para janela sem chrome do compositor.
+# No COSMIC, layer-shell com Layer.BOTTOM + exclusive_zone=-1 evita a
+# “mãozinha” na mesa (causada por Layer.TOP / zona exclusiva).
+_has_layer_shell() {
+  python3 - <<'PY' 2>/dev/null
+import gi
+gi.require_version("GtkLayerShell", "0.1")
+from gi.repository import GtkLayerShell  # noqa: F401
+PY
+}
+
+_is_cosmic() {
+  echo "${XDG_CURRENT_DESKTOP-} ${XDG_SESSION_DESKTOP-} ${DESKTOP_SESSION-}" | grep -qi cosmic
+}
+
+_use_wayland_layer=
+if [[ -n "${WAYLAND_DISPLAY:-}" ]] && _has_layer_shell; then
+  _use_wayland_layer=1
+fi
+
+if [[ -n "${_use_wayland_layer}" ]]; then
   unset DISPLAY 2>/dev/null || true
-  export GDK_BACKEND="${GDK_BACKEND:-wayland}"
+  export GDK_BACKEND=wayland
 else
-  export GDK_BACKEND="${GDK_BACKEND:-x11}"
+  # Mantém DISPLAY (ex.: :1) para XWayland; força X11.
+  if [[ -z "${DISPLAY:-}" ]]; then
+    for d in :1 :0; do
+      if [[ -S "/tmp/.X11-unix/X${d#:}" ]]; then
+        export DISPLAY="$d"
+        break
+      fi
+    done
+  fi
+  export GDK_BACKEND=x11
+  if [[ -n "${WAYLAND_DISPLAY:-}" ]] && ! _has_layer_shell; then
+    echo "desktop-widget: aviso — GtkLayerShell ausente; usando X11 sem borda" >&2
+  fi
 fi
 
 if [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]] && [[ -e "$XDG_RUNTIME_DIR/bus" ]]; then

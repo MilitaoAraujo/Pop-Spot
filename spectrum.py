@@ -1,5 +1,7 @@
 # Visualizador de espectro em tempo real via PulseAudio/PipeWire (parec + FFT)
 
+import array
+import math
 import subprocess
 import threading
 import logging
@@ -19,6 +21,7 @@ class AudioSpectrum:
         self._proc       = None
         self._running    = False
         self._start_lock = threading.Lock()
+        self._np         = None
 
     def start(self):
         with self._start_lock:
@@ -48,10 +51,10 @@ class AudioSpectrum:
     def _loop(self):
         try:
             import numpy as np
+            self._np = np
         except ImportError:
-            log.warning("numpy não encontrado — espectro desativado")
-            self._running = False
-            return
+            self._np = None
+            log.info("numpy ausente — espectro em modo Python puro")
 
         try:
             self._proc = subprocess.Popen(
@@ -76,7 +79,10 @@ class AudioSpectrum:
             raw = self._proc.stdout.read(chunk_bytes)
             if len(raw) < chunk_bytes:
                 break
-            self._process(raw, np)
+            if self._np is not None:
+                self._process_numpy(raw, self._np)
+            else:
+                self._process_puro(raw)
 
         try:
             self._proc.terminate()
@@ -88,7 +94,14 @@ class AudioSpectrum:
             pass
         self._running = False
 
-    def _process(self, raw: bytes, np):
+    def _aplicar_barras(self, new_bars):
+        peak = max(new_bars) or 1.0
+        new_bars = [min(v / peak, 1.0) for v in new_bars]
+        with self._lock:
+            for i in range(N_BARS):
+                self._bars[i] = self._bars[i] * DECAY + new_bars[i] * (1 - DECAY)
+
+    def _process_numpy(self, raw: bytes, np):
         samples = np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32768.0
         fft     = np.abs(np.fft.rfft(samples * np.hanning(len(samples))))
         n       = len(fft)
@@ -100,10 +113,30 @@ class AudioSpectrum:
             lo, hi = max(lo, 0), min(hi, n - 1)
             val = float(np.mean(fft[lo:hi+1])) if hi > lo else float(fft[lo])
             new_bars.append(val)
+        self._aplicar_barras(new_bars)
 
-        peak = max(new_bars) or 1.0
-        new_bars = [min(v / peak, 1.0) for v in new_bars]
+    def _process_puro(self, raw: bytes):
+        """FFT leve em Python puro (downsample) — visual similar sem numpy."""
+        samples = array.array("h")
+        samples.frombytes(raw)
+        step = max(1, len(samples) // 256)
+        xs = [samples[i] / 32768.0 for i in range(0, len(samples), step)]
+        n = len(xs)
+        if n < 8:
+            return
 
-        with self._lock:
-            for i in range(N_BARS):
-                self._bars[i] = self._bars[i] * DECAY + new_bars[i] * (1 - DECAY)
+        # Janela triangular simples
+        half = (n - 1) / 2.0 or 1.0
+        xs = [x * (1.0 - abs(i - half) / half) for i, x in enumerate(xs)]
+
+        new_bars = []
+        for i in range(N_BARS):
+            # índices em escala log (mais resolução nos graves)
+            k = max(1, int((n // 2 - 1) * ((i + 1) / N_BARS) ** 2.0))
+            re = im = 0.0
+            for idx, x in enumerate(xs):
+                ang = 2.0 * math.pi * k * idx / n
+                re += x * math.cos(ang)
+                im -= x * math.sin(ang)
+            new_bars.append(math.hypot(re, im) / n)
+        self._aplicar_barras(new_bars)

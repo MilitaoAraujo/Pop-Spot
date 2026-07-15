@@ -11,9 +11,12 @@ sudo apt-get install -y \
     python3-gi-cairo \
     gir1.2-gtk-3.0 \
     gir1.2-gdkpixbuf-2.0 \
+    gir1.2-gtklayershell-0.1 \
+    libgtk-layer-shell0 \
     python3-dbus \
     python3-requests \
     python3-numpy \
+    pulseaudio-utils \
     fonts-inter 2>/dev/null || true
 
 # python3-requests via pip if apt version is too old

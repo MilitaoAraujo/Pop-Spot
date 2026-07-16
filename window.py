@@ -26,11 +26,12 @@ from config import (
     COR_BASE, COR_SUPERFICIE, COR_TEXTO, COR_TEXTO_SECUNDARIO, COR_TEXTO_TERCIARIO,
     COR_DESTAQUE, COR_BOTOES_SPOTIFY, OPACIDADE_FUNDO, PRESETS, RAIO_BORDA,
     MOSTRAR_CALENDARIO, MOSTRAR_SPOTIFY, MOSTRAR_ESPECTRO, MOSTRAR_PREVISAO,
-    NOTIFICAR_CHUVA_FORTE,
+    NOTIFICAR_CHUVA_FORTE, ADAPTAR_WALLPAPER_AUTO,
 )
 from css     import gerar_css
 import weather  as mod_clima
 import spotify  as mod_spotify
+import wallpaper_theme as mod_wall
 from spectrum import AudioSpectrum, N_BARS
 
 log = logging.getLogger("widget")
@@ -198,6 +199,8 @@ class WidgetDesktop(Gtk.Window):
         self._xprop_feito     = False
         self._css_provider    = None
         self._previsao_widgets = []
+        self._wall_mtime = None
+        self._wall_path_atual = None
 
         _cfg = Path(__file__).parent / "config"
         self._config_arquivos = [p for p in _cfg.glob("*.py") if not p.name.startswith("_")]
@@ -241,16 +244,22 @@ class WidgetDesktop(Gtk.Window):
         self.connect_after("map", self._ao_mapear)
 
         display = Gdk.Display.get_default()
-        monitor = display.get_primary_monitor() or display.get_monitor(0)
-        geo     = monitor.get_geometry()
-        self._monitor_geo = geo
+        self._monitor_geo = self._ler_monitor_geo()
+        geo = self._monitor_geo
         px, py = self._carregar_posicao_arquivo()
         if px < 0 or py < 0:
             px, py = int(POS_X), int(POS_Y)
+        # Posição salva de outra resolução fica fora da tela — ignora
+        if px >= 0 and py >= 0 and not self._posicao_visivel(px, py, geo):
+            log.info("posição salva fora da tela (%s,%s) — recentrando", px, py)
+            try:
+                (Path(__file__).parent / "config" / ".widget_pos").unlink(missing_ok=True)
+            except Exception:
+                pass
+            px, py = -1, -1
         self._pos_manual = px >= 0 and py >= 0
         if self._pos_manual:
-            self._pos_x = px
-            self._pos_y = py
+            self._pos_x, self._pos_y = self._clamp_pos(px, py)
         else:
             self._pos_x = self._calcular_pos_x(geo)
             self._pos_y = geo.y + (geo.height - self._altura_atual) // 2
@@ -266,6 +275,16 @@ class WidgetDesktop(Gtk.Window):
         self.connect("motion-notify-event", self._durante_arrasto)
         self.connect("button-release-event", self._fim_arrasto)
         self.connect("configure-event", self._on_configure)
+        try:
+            display.connect("monitor-added", self._on_monitores_mudaram)
+            display.connect("monitor-removed", self._on_monitores_mudaram)
+        except Exception:
+            pass
+        try:
+            tela.connect("size-changed", self._on_monitores_mudaram)
+            tela.connect("monitors-changed", self._on_monitores_mudaram)
+        except Exception:
+            pass
 
         if self._ativar_layer_shell():
             log.info("gtk-layer-shell ativo (Wayland)")
@@ -288,6 +307,60 @@ class WidgetDesktop(Gtk.Window):
             return geo.x + MARGEM_DIREITA
         return geo.x + geo.width - _px(LARGURA) - MARGEM_DIREITA
 
+    @staticmethod
+    def _ler_monitor_geo():
+        display = Gdk.Display.get_default()
+        monitor = display.get_primary_monitor() or display.get_monitor(0)
+        return monitor.get_geometry()
+
+    def _posicao_visivel(self, x: int, y: int, geo=None) -> bool:
+        """True se o canto do widget ainda cabe na tela atual."""
+        geo = geo or self._monitor_geo
+        w = max(self.get_allocated_width() or 0, _px(LARGURA))
+        h = max(self.get_allocated_height() or 0, self._altura_atual)
+        # Exige pelo menos ~60% do widget dentro da área útil
+        return (
+            x + w * 0.4 >= geo.x
+            and y + h * 0.4 >= geo.y
+            and x <= geo.x + geo.width - w * 0.4
+            and y <= geo.y + geo.height - h * 0.4
+        )
+
+    def _on_monitores_mudaram(self, *_args):
+        """Resolução/monitor mudou — atualiza geometria e reposiciona se preciso."""
+        GLib.idle_add(self._reagir_mudanca_tela)
+        return None
+
+    def _reagir_mudanca_tela(self):
+        antigo = self._monitor_geo
+        geo = self._ler_monitor_geo()
+        self._monitor_geo = geo
+        if (
+            antigo
+            and antigo.width == geo.width
+            and antigo.height == geo.height
+            and antigo.x == geo.x
+            and antigo.y == geo.y
+        ):
+            return False
+        log.info(
+            "tela mudou %sx%s → %sx%s",
+            getattr(antigo, "width", "?"), getattr(antigo, "height", "?"),
+            geo.width, geo.height,
+        )
+        # Coordenadas absolutas não transferem bem entre resoluções —
+        # volta ao lado configurado (LADO) e esquece a posição manual.
+        self._pos_manual = False
+        try:
+            (Path(__file__).parent / "config" / ".widget_pos").unlink(missing_ok=True)
+        except Exception:
+            pass
+        x = self._calcular_pos_x(geo)
+        y = geo.y + (geo.height - self._altura_atual) // 2
+        self._mover_para(x, y)
+        self._aplicar_input_shape()
+        return False
+
     def _ao_mapear(self, *_args):
         if not self._ls:
             self._reforcar_x11()
@@ -296,6 +369,20 @@ class WidgetDesktop(Gtk.Window):
 
     def _finalizar_mapeamento(self):
         """Único passo pós-map: reflow + input shape (sem spam de timeouts)."""
+        self._monitor_geo = self._ler_monitor_geo()
+        if self._pos_manual and not self._posicao_visivel(self._pos_x, self._pos_y):
+            self._pos_manual = False
+            try:
+                (Path(__file__).parent / "config" / ".widget_pos").unlink(missing_ok=True)
+            except Exception:
+                pass
+            geo = self._monitor_geo
+            self._mover_para(
+                self._calcular_pos_x(geo),
+                geo.y + (geo.height - self._altura_atual) // 2,
+            )
+        elif self._pos_manual:
+            self._mover_para(*self._clamp_pos(self._pos_x, self._pos_y))
         self.queue_resize()
         self._aplicar_input_shape()
         return False
@@ -484,10 +571,13 @@ class WidgetDesktop(Gtk.Window):
         self._altura_atual = h
         self._raiz.set_size_request(_px(LARGURA), nat)
         self.set_size_request(_px(LARGURA), h)
-        geo = self._monitor_geo
+        geo = self._monitor_geo or self._ler_monitor_geo()
+        self._monitor_geo = geo
         if not self._pos_manual:
             self._pos_x = self._calcular_pos_x(geo)
             self._pos_y = geo.y + (geo.height - h) // 2
+        else:
+            self._pos_x, self._pos_y = self._clamp_pos(self._pos_x, self._pos_y)
         self._mover_para(self._pos_x, self._pos_y)
         self.queue_resize()
         GLib.idle_add(self._aplicar_input_shape)
@@ -822,6 +912,26 @@ class WidgetDesktop(Gtk.Window):
             linha_presets.pack_start(bp, True, True, 0)
         conteudo.pack_start(linha_presets, False, False, 0)
 
+        btn_wall = Gtk.Button(label="Adaptar ao wallpaper")
+        btn_wall.set_tooltip_text("Extrai cores do fundo de tela atual (COSMIC)")
+        btn_wall.get_style_context().add_class("btnConfig")
+        btn_wall.connect("clicked", self._on_adaptar_wallpaper)
+        conteudo.pack_start(btn_wall, False, False, 0)
+
+        self.chk_wall_auto = Gtk.CheckButton(label="Atualizar cores quando o wallpaper mudar")
+        self.chk_wall_auto.set_active(bool(ADAPTAR_WALLPAPER_AUTO))
+        self.chk_wall_auto.get_style_context().add_class("checkConfig")
+        conteudo.pack_start(self.chk_wall_auto, False, False, 0)
+        conteudo.pack_start(
+            self._rotulo(
+                "dicaConfig",
+                "Usa as cores dominantes do wallpaper.\n"
+                "Salvar grava o tema (e a opção automática).",
+                Gtk.Align.START,
+            ),
+            False, False, 0,
+        )
+
         conteudo.pack_start(
             self._rotulo("labelConfig", "Tamanho do widget", Gtk.Align.START), False, False, 0)
         self.scale_tamanho = Gtk.Scale.new_with_range(
@@ -942,10 +1052,16 @@ class WidgetDesktop(Gtk.Window):
         preset = PRESETS.get(nome_preset)
         if not preset:
             return
-        for nome, valor in preset.items():
+        self._preencher_cores_ui(preset)
+        self.lbl_status_config.set_text(f"Tema “{nome_preset}” aplicado — Salvar para confirmar")
+
+    def _preencher_cores_ui(self, cores: dict):
+        for nome, valor in cores.items():
             if nome == "OPACIDADE_FUNDO":
                 if hasattr(self, "scale_opacidade"):
                     self.scale_opacidade.set_value(float(valor))
+                continue
+            if not isinstance(valor, str) or not valor.startswith("#"):
                 continue
             btn = self._cores_botoes.get(nome)
             entry = self._cores_botoes.get(nome + "_entry")
@@ -953,7 +1069,30 @@ class WidgetDesktop(Gtk.Window):
                 btn.set_rgba(_hex_para_rgba(valor))
             if entry is not None:
                 entry.set_text(valor)
-        self.lbl_status_config.set_text(f"Tema \u201c{nome_preset}\u201d aplicado — Salvar para confirmar")
+
+    def _on_adaptar_wallpaper(self, _btn):
+        self.lbl_status_config.set_text("Lendo wallpaper…")
+        threading.Thread(target=self._bg_adaptar_wallpaper, daemon=True).start()
+
+    def _bg_adaptar_wallpaper(self):
+        tema, info = mod_wall.adaptar_ao_wallpaper()
+        GLib.idle_add(self._aplicar_tema_wallpaper, tema, info)
+
+    def _aplicar_tema_wallpaper(self, tema, info):
+        if not tema:
+            self.lbl_status_config.set_text(info or "Não foi possível adaptar")
+            return False
+        self._preencher_cores_ui(tema)
+        nome = Path(info).name if info else "wallpaper"
+        self.lbl_status_config.set_text(f"Cores de “{nome}” — Salvar para confirmar")
+        self._wall_path_atual = info
+        return False
+
+    def _gravar_e_aplicar_tema(self, tema: dict):
+        """Grava colors.py com o tema e recarrega ao vivo."""
+        cores = {k: v for k, v in tema.items() if k.startswith("COR_") or k == "OPACIDADE_FUNDO"}
+        self._gravar_constantes(Path(__file__).parent / "config" / "colors.py", cores)
+        self._recarregar_config()
 
     def _carregar_cores_ui(self):
         atuais = {
@@ -1016,6 +1155,8 @@ class WidgetDesktop(Gtk.Window):
                 chk.set_active(bool(atual))
             if hasattr(self, "chk_chuva"):
                 self.chk_chuva.set_active(bool(NOTIFICAR_CHUVA_FORTE))
+            if hasattr(self, "chk_wall_auto"):
+                self.chk_wall_auto.set_active(bool(ADAPTAR_WALLPAPER_AUTO))
             if hasattr(self, "scale_tamanho"):
                 self.scale_tamanho.set_value(float(_escala_f()))
             self._stack.set_visible_child_name("config")
@@ -1123,6 +1264,10 @@ class WidgetDesktop(Gtk.Window):
                     "MOSTRAR_ESPECTRO": self.chk_espectro.get_active(),
                     "MOSTRAR_PREVISAO": self.chk_previsao.get_active(),
                     "NOTIFICAR_CHUVA_FORTE": self.chk_chuva.get_active(),
+                    "ADAPTAR_WALLPAPER_AUTO": (
+                        self.chk_wall_auto.get_active()
+                        if hasattr(self, "chk_wall_auto") else False
+                    ),
                 },
             )
             self._gravar_constantes(
@@ -1345,11 +1490,13 @@ class WidgetDesktop(Gtk.Window):
         return False
 
     def _clamp_pos(self, x: int, y: int) -> tuple[int, int]:
-        geo = self._monitor_geo
-        w = max(self.get_allocated_width(), _px(LARGURA))
-        h = max(self.get_allocated_height(), self._altura_atual)
-        x = max(geo.x, min(x, geo.x + geo.width - w))
-        y = max(geo.y, min(y, geo.y + geo.height - h))
+        geo = self._monitor_geo or self._ler_monitor_geo()
+        w = max(self.get_allocated_width() or 0, _px(LARGURA))
+        h = max(self.get_allocated_height() or 0, self._altura_atual)
+        max_x = max(geo.x, geo.x + geo.width - w)
+        max_y = max(geo.y, geo.y + geo.height - h)
+        x = max(geo.x, min(x, max_x))
+        y = max(geo.y, min(y, max_y))
         return int(x), int(y)
 
     # ── Arrasto e menu de contexto ─────────────────────────────────────────
@@ -1419,6 +1566,7 @@ class WidgetDesktop(Gtk.Window):
         except Exception:
             pass
         self._pos_manual = False
+        self._monitor_geo = self._ler_monitor_geo()
         geo = self._monitor_geo
         x = self._calcular_pos_x(geo)
         y = geo.y + (geo.height - self._altura_atual) // 2
@@ -1510,6 +1658,50 @@ class WidgetDesktop(Gtk.Window):
         GLib.timeout_add_seconds(ATUALIZAR_SPOTIFY_SEG, self._tick_spotify)
         GLib.timeout_add(67, self._tick_espectro)
         GLib.timeout_add(1500, self._verificar_config)
+        # Memoriza wallpaper atual; se auto estiver ligado, reage a mudanças
+        self._wall_path_atual = mod_wall.localizar_wallpaper()
+        est = mod_wall.caminho_estado_cosmic()
+        try:
+            self._wall_mtime = est.stat().st_mtime if est.is_file() else None
+        except Exception:
+            self._wall_mtime = None
+        GLib.timeout_add_seconds(4, self._verificar_wallpaper)
+
+    def _verificar_wallpaper(self):
+        if not ADAPTAR_WALLPAPER_AUTO:
+            return True
+        est = mod_wall.caminho_estado_cosmic()
+        try:
+            mtime = est.stat().st_mtime if est.is_file() else None
+        except Exception:
+            return True
+        caminho = mod_wall.localizar_wallpaper()
+        if self._wall_path_atual is None:
+            self._wall_path_atual = caminho
+            self._wall_mtime = mtime
+            return True
+        if mtime == self._wall_mtime and caminho == self._wall_path_atual:
+            return True
+        antigo = self._wall_path_atual
+        self._wall_mtime = mtime
+        self._wall_path_atual = caminho
+        if caminho and caminho != antigo:
+            log.info("wallpaper mudou → %s", caminho)
+            threading.Thread(target=self._bg_adaptar_wallpaper_auto, daemon=True).start()
+        return True
+
+    def _bg_adaptar_wallpaper_auto(self):
+        tema, info = mod_wall.adaptar_ao_wallpaper()
+        if tema:
+            GLib.idle_add(self._aplicar_tema_wallpaper_auto, tema, info)
+
+    def _aplicar_tema_wallpaper_auto(self, tema, info):
+        try:
+            self._gravar_e_aplicar_tema(tema)
+            log.info("cores adaptadas automaticamente de %s", info)
+        except Exception as e:
+            log.warning("auto wallpaper: %s", e)
+        return False
 
     # ── Hot reload por mtime ────────────────────────────────────────────
 

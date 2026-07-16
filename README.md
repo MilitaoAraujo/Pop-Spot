@@ -77,6 +77,7 @@ OPACIDADE_FUNDO = 1.00
 ```
 
 Temas rápidos na tela de configs: Roxo, Azul, Mono, Verde.
+Também dá para **Adaptar ao wallpaper** (cores dominantes do fundo no COSMIC).
 
 ### `config/layout.py`
 

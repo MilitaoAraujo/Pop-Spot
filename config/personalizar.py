@@ -1,7 +1,7 @@
 # Personalizações do widget
 
 # Localização: "" = automática; ou "Recife", "-7.23,-35.88", etc.
-CIDADE = "Volgogrado"
+CIDADE = "Queimadas"
 
 # Blocos visíveis
 MOSTRAR_CALENDARIO = True
@@ -31,6 +31,9 @@ TEXTO_SEM_CONEXAO = "Sem conexão"
 FORMATO_VENTO_UMIDADE = "Vento {vento} m/s  -  Umidade {umidade}%"
 UNIDADE_TEMPERATURA = "°C"
 NOTIFICAR_CHUVA_FORTE = True
+
+# Adaptar cores do widget ao wallpaper (COSMIC)
+ADAPTAR_WALLPAPER_AUTO = False
 
 
 # Progresso do dia / calendário

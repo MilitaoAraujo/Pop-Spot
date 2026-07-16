@@ -2,29 +2,29 @@
 # Widget colors — edit the values below to customize
 
 # Fundo principal do widget
-COR_BASE       = "#101010"
+COR_BASE       = "#090914"
 
 # Superfície dos botões (play/pause/skip)
-COR_SUPERFICIE = "#1c1c1c"
+COR_SUPERFICIE = "#19192d"
 
 # Texto principal (hora, temperatura)
-COR_TEXTO      = "#f0f0f0"
+COR_TEXTO      = "#e6e6eb"
 
 # Texto secundário — descrição do clima, artista, dia da semana,
 # dias do calendário, progresso do dia
-COR_TEXTO_SECUNDARIO = "#9a9a9a"
+COR_TEXTO_SECUNDARIO = "#9999a0"
 
 # Texto terciário — vento/umidade, álbum
-COR_TEXTO_TERCIARIO  = "#555555"
+COR_TEXTO_TERCIARIO  = "#6c6c75"
 
 # Cor de destaque — títulos, cidade, nome da música, hoje no calendário
-COR_DESTAQUE   = "#d0d0d0"
+COR_DESTAQUE   = "#496d7f"
 
 # Ícones dos botões de controle (pode ser igual ao destaque)
-COR_BOTOES_SPOTIFY = "#d0d0d0"
+COR_BOTOES_SPOTIFY = "#496d7f"
 
 # Opacidade do fundo do widget (0.0 = invisível, 1.0 = opaco)
-OPACIDADE_FUNDO = 1.00
+OPACIDADE_FUNDO = 0.92
 
 # ── Derivações automáticas — não editar abaixo ────────────────────────────
 

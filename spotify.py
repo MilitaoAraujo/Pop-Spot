@@ -1,8 +1,9 @@
-# Integração com Spotify via D-Bus MPRIS2
+# Integração com Spotify: Linux = D-Bus MPRIS2, Windows = SMTC
 import logging
 import subprocess
+import sys
+
 import requests
-from gi.repository import GdkPixbuf
 
 log = logging.getLogger("widget.spotify")
 
@@ -31,6 +32,9 @@ def _props():
 
 
 def comando(metodo: str) -> bool:
+    if sys.platform == "win32":
+        from win.media import comando as fn
+        return fn(metodo)
     obj = _obj_mpris()
     if not obj:
         return False
@@ -44,7 +48,10 @@ def comando(metodo: str) -> bool:
 
 
 def definir_volume(valor: float) -> bool:
-    """Define volume MPRIS (0.0–1.0)."""
+    """Define volume (0.0–1.0). Linux = MPRIS; Windows = sessão de áudio do Spotify."""
+    if sys.platform == "win32":
+        from win.media import definir_volume as fn
+        return fn(valor)
     _obj, props = _props()
     if not props:
         return False
@@ -60,6 +67,9 @@ def definir_volume(valor: float) -> bool:
 
 def abrir() -> bool:
     """Traz o Spotify pra frente ou abre o app."""
+    if sys.platform == "win32":
+        from win.media import abrir as fn
+        return fn()
     obj = _obj_mpris()
     if obj:
         try:
@@ -80,6 +90,9 @@ def abrir() -> bool:
 
 
 def buscar_faixa() -> dict | None:
+    if sys.platform == "win32":
+        from win.media import buscar_faixa as fn
+        return fn()
     obj, props = _props()
     if not obj or not props:
         return None
@@ -103,7 +116,8 @@ def buscar_faixa() -> dict | None:
         return None
 
 
-def carregar_capa(url: str, tamanho: int) -> GdkPixbuf.Pixbuf | None:
+def carregar_capa(url: str, tamanho: int):
+    from gi.repository import GdkPixbuf
     try:
         if url.startswith("file://"):
             return GdkPixbuf.Pixbuf.new_from_file_at_scale(url[7:], tamanho, tamanho, True)

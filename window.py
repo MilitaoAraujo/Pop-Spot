@@ -1803,32 +1803,39 @@ class WidgetDesktop(Gtk.Window):
         GLib.timeout_add_seconds(max(1, int(VERIFICAR_ARQUIVOS_SEG)), self._verificar_arquivos)
         # Memoriza wallpaper atual; se auto estiver ligado, reage a mudanças
         self._wall_path_atual = mod_wall.localizar_wallpaper()
-        est = mod_wall.caminho_estado_cosmic()
         try:
-            self._wall_mtime = est.stat().st_mtime if est.is_file() else None
+            self._wall_sig = mod_wall.assinatura_wallpaper()
+            self._wall_mtime = self._wall_sig[1][0] if self._wall_sig[1] else None
         except Exception:
-            self._wall_mtime = None
+            self._wall_sig = None
+            est = mod_wall.caminho_estado_cosmic()
+            try:
+                self._wall_mtime = est.stat().st_mtime if est.is_file() else None
+            except Exception:
+                self._wall_mtime = None
         GLib.timeout_add_seconds(4, self._verificar_wallpaper)
 
     def _verificar_wallpaper(self):
         if not ADAPTAR_WALLPAPER_AUTO:
             return True
-        est = mod_wall.caminho_estado_cosmic()
         try:
-            mtime = est.stat().st_mtime if est.is_file() else None
+            sig = mod_wall.assinatura_wallpaper()
         except Exception:
             return True
-        caminho = mod_wall.localizar_wallpaper()
-        if self._wall_path_atual is None:
-            self._wall_path_atual = caminho
-            self._wall_mtime = mtime
+        if getattr(self, "_wall_sig", None) is None:
+            self._wall_sig = sig
+            self._wall_path_atual = sig[0]
             return True
-        if mtime == self._wall_mtime and caminho == self._wall_path_atual:
+        if sig == self._wall_sig:
             return True
-        antigo = self._wall_path_atual
-        self._wall_mtime = mtime
-        self._wall_path_atual = caminho
-        if caminho and caminho != antigo:
+        antigo = self._wall_sig
+        self._wall_sig = sig
+        self._wall_path_atual = sig[0]
+        caminho = sig[0]
+        anterior = antigo[0] if antigo else None
+        mtime_novo = sig[1] if len(sig) > 1 else None
+        mtime_ant = antigo[1] if antigo and len(antigo) > 1 else None
+        if caminho and (caminho != anterior or mtime_novo != mtime_ant):
             log.info("wallpaper mudou → %s", caminho)
             threading.Thread(target=self._bg_adaptar_wallpaper_auto, daemon=True).start()
         return True

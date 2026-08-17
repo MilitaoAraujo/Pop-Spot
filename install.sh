@@ -18,12 +18,20 @@ sudo apt-get install -y \
     python3-dbus \
     python3-requests \
     python3-numpy \
+    python3-pip \
+    python3-venv \
     pulseaudio-utils \
     geoclue-2.0
 
 sudo apt-get install -y fonts-inter || true
 
-python3 -c "import requests" 2>/dev/null || pip3 install --user requests
+echo ""
+echo "==> Python venv (PySide6; GTK do sistema via --system-site-packages)..."
+if [[ ! -x "$SCRIPT_DIR/.venv/bin/python3" ]]; then
+    python3 -m venv --system-site-packages "$SCRIPT_DIR/.venv"
+fi
+"$SCRIPT_DIR/.venv/bin/python3" -m pip install -q --upgrade pip
+"$SCRIPT_DIR/.venv/bin/python3" -m pip install -q -r "$SCRIPT_DIR/requirements.txt"
 
 echo ""
 echo "==> Enabling autostart (systemd user)..."

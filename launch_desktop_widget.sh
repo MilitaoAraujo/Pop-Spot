@@ -120,4 +120,6 @@ if [[ -z "${WAYLAND_DISPLAY:-}" ]]; then
   echo "desktop-widget: aviso — WAYLAND_DISPLAY vazio ao iniciar; interface pode falhar" >&2
 fi
 
-exec python3 "$SCRIPT_DIR/main.py"
+PY="$SCRIPT_DIR/.venv/bin/python3"
+if [[ ! -x "$PY" ]]; then PY=python3; fi
+exec "$PY" "$SCRIPT_DIR/main.py"

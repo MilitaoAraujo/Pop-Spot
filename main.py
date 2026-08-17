@@ -1,35 +1,43 @@
-# Widget de Desktop — Relógio, Clima e Spotify
+#!/usr/bin/env python3
+# Pop Spot — UI Qt (PySide6) no Pop!_OS e no Windows.
 #
-# Personalize em config/:
-#   colors.py, layout.py, general.py, personalizar.py, themes.py
+# No Linux a janela Qt é hospedada em GTK + layer-shell (COSMIC precisa disso
+# para ficar na mesa, sem dock). A UI em si é a mesma.
+# Fallback GTK puro: POPSPOT_GTK=1 python3 main.py
 
-import sys
-import os
-import fcntl
-from pathlib import Path
-
-import gi
-gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk
+from __future__ import annotations
 
 import logging
+import os
+import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_RAIZ = Path(__file__).resolve().parent
+if str(_RAIZ) not in sys.path:
+    sys.path.insert(0, str(_RAIZ))
+os.chdir(_RAIZ)
 logging.basicConfig(level=logging.WARNING)
 
-from window import WidgetDesktop
 
-_lock_fp = None
+def main():
+    if os.environ.get("POPSPOT_GTK") == "1" and not sys.platform.startswith("win"):
+        _main_gtk()
+        return
+    from win.main import main as win_main
+    win_main()
 
 
-def _uma_instancia():
-    """Garante um único processo (lock em XDG_RUNTIME_DIR)."""
-    global _lock_fp
+def _main_gtk():
+    import fcntl
+    import gi
+    gi.require_version("Gtk", "3.0")
+    from gi.repository import Gtk
+    from window import WidgetDesktop
+
     runtime = Path(os.environ.get("XDG_RUNTIME_DIR") or "/tmp")
-    arq = runtime / "pop-spot.lock"
-    _lock_fp = open(arq, "w")
+    lock_fp = open(runtime / "pop-spot.lock", "w")
     try:
-        fcntl.flock(_lock_fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(lock_fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         try:
             from config.i18n import t
@@ -37,12 +45,8 @@ def _uma_instancia():
         except Exception:
             print("Pop Spot is already running.", file=sys.stderr)
         sys.exit(0)
-    _lock_fp.write(str(os.getpid()))
-    _lock_fp.flush()
-
-
-def main():
-    _uma_instancia()
+    lock_fp.write(str(os.getpid()))
+    lock_fp.flush()
     WidgetDesktop().show_all()
     Gtk.main()
 

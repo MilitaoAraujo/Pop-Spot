@@ -1,8 +1,8 @@
 # Pop Spot
 
-**A desktop widget for Pop!_OS** / **Um widget de desktop para o Pop!_OS**
+**A desktop widget for Pop!_OS and Windows** / **Um widget de desktop para o Pop!_OS e o Windows**
 
-Python + GTK3. Clock, weather, Spotify and a live audio spectrum — built for **Pop!_OS / COSMIC**, with Wayland layer-shell (and an X11 fallback). Version **0.1.0**.
+Python + **PySide6**. Clock, weather, Spotify and a live audio spectrum. Same UI on both systems. On **Pop!_OS / COSMIC** the Qt window is hosted in GTK + layer-shell so it stays on the desktop (not in the dock). On **Windows** it is a native frameless tool window. Version **0.1.0**.
 
 ![Pop Spot on the desktop](docs/screenshot.png)
 
@@ -12,34 +12,26 @@ Python + GTK3. Clock, weather, Spotify and a live audio spectrum — built for *
 
 ## English
 
-A floating desktop widget: time, calendar, weather (with 3-day forecast), Spotify controls and an audio visualizer. Drag it, theme it, hide blocks you don’t need. Changes in settings apply without restarting.
+A floating desktop widget: time, calendar, weather (3-day forecast), Spotify controls and an audio visualizer. Drag it, theme it, hide blocks you don’t need. Settings apply without restarting.
 
-### Features
+### Specs
 
-- Clock, day progress and mini calendar
-- Weather (wttr.in, Open-Meteo fallback) + 3-day forecast + local cache
-- Auto location, city autocomplete and heavy-rain notification
-- Spotify (MPRIS): cover, controls, volume — click the cover to open the app
-- Live audio spectrum
-- Drag to reposition (saved); right-click to reset
-- Settings (gear): language **English / Português**, colors, opacity, size, themes, city, visible blocks
-- Match colors to the COSMIC wallpaper
-- Hide calendar, Spotify, spectrum or forecast
-- Wayland (gtk-layer-shell) so it stays off the taskbar; X11 fallback
+| | **Pop!_OS** | **Windows** |
+|---|---|---|
+| UI | PySide6 | PySide6 |
+| Desktop chrome | GTK layer-shell host | Native tool window (no taskbar) |
+| Spotify | MPRIS (D-Bus) | SMTC + session volume (`pycaw`) |
+| Spectrum | Pulse/`parec` | WASAPI loopback (`sounddevice`) |
+| Wallpaper colors | COSMIC / GNOME | Desktop wallpaper API |
+| Rain alert | `notify-send` | Balloon / toast |
+| Autostart | systemd user (`install.sh`) | Startup folder (`install_windows.ps1`) |
+| Entry point | `main.py` | `main.py` |
 
-### Requirements (Pop!_OS / Ubuntu / Debian)
+Also: auto location, city autocomplete, local weather cache, hide calendar / Spotify / spectrum / forecast, English / Português, match-wallpaper themes.
 
-| Package | Role |
-|---|---|
-| `python3-gi` / `python3-gi-cairo` | GTK3 + Cairo |
-| `python3-dbus` | Spotify / GeoClue |
-| `python3-requests` / `python3-numpy` | HTTP + FFT |
-| `gir1.2-gtk-3.0` / `gir1.2-gdkpixbuf-2.0` | Bindings |
-| `pulseaudio-utils` | `parec` (spectrum) |
-| `gir1.2-gtklayershell-0.1` + `libgtk-layer-shell0` | Wayland (recommended) |
-| `geoclue-2.0` *(optional)* | More accurate location |
+### Install on Pop!_OS
 
-### Install
+Needs **Pop!_OS / Ubuntu / Debian**, Python 3, and (recommended) gtk-layer-shell.
 
 ```bash
 git clone https://github.com/MilitaoAraujo/Pop-Spot.git
@@ -47,15 +39,53 @@ cd Pop-Spot
 bash install.sh
 ```
 
-That installs packages and starts the widget on login (one instance only). To run it by hand: `bash launch_desktop_widget.sh`.
+`install.sh` installs the system packages below, creates `.venv` with PySide6, and enables login autostart.
 
-Uninstall (stops autostart; does **not** delete the folder):
+Run by hand: `bash launch_desktop_widget.sh`
 
-```bash
-bash uninstall.sh
-```
+Stop autostart (does **not** delete the folder): `bash uninstall.sh`
 
 Logs: `journalctl --user -u desktop-widget.service -f`
+
+| Package | Role |
+|---|---|
+| `python3-gi` / `python3-gi-cairo` | GTK3 host (layer-shell) |
+| `gir1.2-gtk-3.0` / `gir1.2-gdkpixbuf-2.0` | GTK bindings |
+| `gir1.2-gtklayershell-0.1` + `libgtk-layer-shell0` | Stay on the desktop (Wayland) |
+| `python3-dbus` | Spotify MPRIS / GeoClue |
+| `python3-pip` / `python3-venv` | `.venv` + PySide6 |
+| `pulseaudio-utils` | `parec` (spectrum) |
+| `python3-requests` / `python3-numpy` | HTTP + FFT (also in the venv) |
+| `geoclue-2.0` *(optional)* | More accurate location |
+| **PySide6** (venv, via `requirements.txt`) | Widget UI |
+
+Without layer-shell the launcher falls back to X11 (may show in the taskbar).
+
+### Install on Windows
+
+Needs **Python 3.10+** with **Add python.exe to PATH**. Spotify desktop app for media controls.
+
+```powershell
+git clone https://github.com/MilitaoAraujo/Pop-Spot.git
+cd Pop-Spot
+powershell -ExecutionPolicy Bypass -File install_windows.ps1
+```
+
+Creates `.venv`, installs `requirements-windows.txt`, starts the widget and adds it to **Startup**.
+
+Run by hand: `.\launch_windows.ps1`
+
+Remove autostart (does **not** delete the folder): `.\uninstall_windows.ps1`
+
+In settings: **Open when Windows starts**. Spectrum needs audio on the default output device; volume needs Spotify actually playing.
+
+| Package (`requirements-windows.txt`) | Role |
+|---|---|
+| `PySide6` | Widget UI |
+| `requests` / `numpy` | Weather + FFT |
+| `sounddevice` | WASAPI loopback (spectrum) |
+| `pycaw` / `comtypes` | Spotify volume |
+| `winrt-runtime` + `winrt-Windows.Media.Control` (+ Storage / Streams) | SMTC (track, cover, play/pause) |
 
 ### Customize
 
@@ -82,7 +112,7 @@ COR_DESTAQUE = "#9b59b6"
 OPACIDADE_FUNDO = 0.92
 ```
 
-Quick themes in settings: Purple, Blue, Mono, Green. **Match wallpaper** pulls dominant colors from the COSMIC background.
+Quick themes in settings: Purple, Blue, Mono, Green. **Match wallpaper** uses the current desktop background.
 
 ```python
 # config/layout.py
@@ -90,13 +120,11 @@ LADO = "direita"   # or "esquerda"
 ESCALA = 1.00      # 0.80–1.30 (also: settings → widget size)
 ```
 
-Drag position is stored in `config/.widget_pos` (right-click → Reset position).
+Drag position: `config/.widget_pos` (right-click → Reset position).
 
 ### COSMIC / Wayland
 
-The launcher uses **layer-shell** on Wayland (no taskbar icon, no SSD chrome). Layer `BOTTOM` + `exclusive_zone=-1` keeps a normal desktop cursor. Without layer-shell it falls back to X11.
-
-Right-click: Settings, Reload weather, Reset position, Quit.
+The launcher uses **layer-shell** so the Qt widget stays off the taskbar. Layer `BOTTOM` + `exclusive_zone=-1` keeps a normal desktop cursor. Right-click: Settings, Reload weather, Reset position, Quit.
 
 ---
 
@@ -104,32 +132,24 @@ Right-click: Settings, Reload weather, Reset position, Quit.
 
 Widget flutuante na área de trabalho: hora, calendário, clima (previsão de 3 dias), controles do Spotify e espectro de áudio. Arraste, troque o tema, esconda blocos. As configs aplicam **sem reiniciar**.
 
-### Funcionalidades
+### Specs
 
-- Relógio, progresso do dia e mini calendário
-- Clima (wttr.in, fallback Open-Meteo) + previsão de 3 dias + cache local
-- Localização automática, autocomplete de cidade e aviso de chuva forte
-- Spotify (MPRIS): capa, controles, volume — clique na capa para abrir o app
-- Espectro de áudio ao vivo
-- Arrastar para reposicionar (posição salva); botão direito para resetar
-- Configurações (engrenagem): idioma **Português / English**, cores, opacidade, tamanho, temas, cidade, blocos
-- Adaptar cores ao wallpaper do COSMIC
-- Blocos ocultáveis (calendário, Spotify, espectro, previsão)
-- Wayland (gtk-layer-shell) fora da taskbar; fallback X11
+| | **Pop!_OS** | **Windows** |
+|---|---|---|
+| Interface | PySide6 | PySide6 |
+| Mesa | Host GTK + layer-shell | Janela tool nativa (sem taskbar) |
+| Spotify | MPRIS (D-Bus) | SMTC + volume da sessão (`pycaw`) |
+| Espectro | Pulse/`parec` | WASAPI loopback (`sounddevice`) |
+| Cores do wallpaper | COSMIC / GNOME | API do papel de parede |
+| Aviso de chuva | `notify-send` | Balloon / toast |
+| Autostart | systemd (`install.sh`) | Pasta Inicializar (`install_windows.ps1`) |
+| Entrada | `main.py` | `main.py` |
 
-### Requisitos (Pop!_OS / Ubuntu / Debian)
+Também: localização automática, autocomplete de cidade, cache do clima, blocos ocultáveis, Português / English, adaptar ao wallpaper.
 
-| Pacote | Função |
-|---|---|
-| `python3-gi` / `python3-gi-cairo` | GTK3 + Cairo |
-| `python3-dbus` | Spotify / GeoClue |
-| `python3-requests` / `python3-numpy` | HTTP + FFT |
-| `gir1.2-gtk-3.0` / `gir1.2-gdkpixbuf-2.0` | Bindings |
-| `pulseaudio-utils` | `parec` (espectro) |
-| `gir1.2-gtklayershell-0.1` + `libgtk-layer-shell0` | Wayland (recomendado) |
-| `geoclue-2.0` *(opcional)* | Localização mais precisa |
+### Instalar no Pop!_OS
 
-### Instalação
+**Pop!_OS / Ubuntu / Debian**, Python 3, e (recomendado) gtk-layer-shell.
 
 ```bash
 git clone https://github.com/MilitaoAraujo/Pop-Spot.git
@@ -137,15 +157,53 @@ cd Pop-Spot
 bash install.sh
 ```
 
-Instala os pacotes e liga o widget no login (só uma instância). Para abrir na mão: `bash launch_desktop_widget.sh`.
+O `install.sh` instala os pacotes abaixo, cria `.venv` com PySide6 e liga o widget no login.
 
-Desinstalar (remove o autostart; **não** apaga a pasta):
+Na mão: `bash launch_desktop_widget.sh`
 
-```bash
-bash uninstall.sh
-```
+Tirar o autostart (**não** apaga a pasta): `bash uninstall.sh`
 
 Logs: `journalctl --user -u desktop-widget.service -f`
+
+| Pacote | Função |
+|---|---|
+| `python3-gi` / `python3-gi-cairo` | Host GTK3 (layer-shell) |
+| `gir1.2-gtk-3.0` / `gir1.2-gdkpixbuf-2.0` | Bindings GTK |
+| `gir1.2-gtklayershell-0.1` + `libgtk-layer-shell0` | Prender na mesa (Wayland) |
+| `python3-dbus` | Spotify MPRIS / GeoClue |
+| `python3-pip` / `python3-venv` | `.venv` + PySide6 |
+| `pulseaudio-utils` | `parec` (espectro) |
+| `python3-requests` / `python3-numpy` | HTTP + FFT (também no venv) |
+| `geoclue-2.0` *(opcional)* | Localização mais precisa |
+| **PySide6** (venv, `requirements.txt`) | Interface do widget |
+
+Sem layer-shell o launcher cai no X11 (pode aparecer na taskbar).
+
+### Instalar no Windows
+
+**Python 3.10+** com **Add python.exe to PATH**. App desktop do Spotify para os controles.
+
+```powershell
+git clone https://github.com/MilitaoAraujo/Pop-Spot.git
+cd Pop-Spot
+powershell -ExecutionPolicy Bypass -File install_windows.ps1
+```
+
+Cria `.venv`, instala `requirements-windows.txt`, abre o widget e coloca na pasta **Inicializar**.
+
+Na mão: `.\launch_windows.ps1`
+
+Tirar o autostart (**não** apaga a pasta): `.\uninstall_windows.ps1`
+
+Nas configurações: **Abrir ao iniciar o Windows**. O espectro precisa de som no dispositivo padrão; o volume, do Spotify tocando.
+
+| Pacote (`requirements-windows.txt`) | Função |
+|---|---|
+| `PySide6` | Interface |
+| `requests` / `numpy` | Clima + FFT |
+| `sounddevice` | WASAPI (espectro) |
+| `pycaw` / `comtypes` | Volume do Spotify |
+| `winrt-runtime` + `winrt-Windows.Media.Control` (+ Storage / Streams) | SMTC (faixa, capa, play/pause) |
 
 ### Personalização
 
@@ -164,15 +222,13 @@ MOSTRAR_PREVISAO = True
 UNIDADE_TEMPERATURA = "°C"  # ou "°F"
 ```
 
-Temas rápidos: Roxo, Azul, Mono, Verde. **Adaptar ao wallpaper** usa as cores do fundo no COSMIC.
+Temas rápidos: Roxo, Azul, Mono, Verde. **Adaptar ao wallpaper** usa o fundo de tela atual.
 
 Lado e tamanho: `config/layout.py` (`LADO`, `ESCALA` 0.80–1.30). Posição ao arrastar: `config/.widget_pos`.
 
 ### COSMIC / Wayland
 
-O launcher usa **layer-shell** no Wayland (some da taskbar, sem borda). Camada `BOTTOM` + `exclusive_zone=-1` evita o cursor de “mãozinha” na área de trabalho. Sem layer-shell, cai no X11.
-
-Menu do botão direito: Configurações, Recarregar clima, Resetar posição, Sair.
+O launcher usa **layer-shell** para a UI Qt ficar na mesa (some da taskbar). Camada `BOTTOM` + `exclusive_zone=-1` evita o cursor de “mãozinha”. Menu do botão direito: Configurações, Recarregar clima, Resetar posição, Sair.
 
 ---
 
@@ -180,21 +236,17 @@ Menu do botão direito: Configurações, Recarregar clima, Resetar posição, Sa
 
 ```
 Pop-Spot/
-├── main.py
-├── window.py
-├── css.py
-├── weather.py / weather_icons.py
-├── spotify.py / spectrum.py
-├── wallpaper_theme.py
-├── launch_desktop_widget.sh
-├── setup_autostart.sh / install.sh / uninstall.sh
+├── main.py                     # entrada única (Linux e Windows)
+├── window.py                   # UI GTK (fallback: POPSPOT_GTK=1)
+├── install.sh / uninstall.sh / setup_autostart.sh / launch_desktop_widget.sh
+├── install_windows.ps1 / uninstall_windows.ps1 / launch_windows.ps1
+├── requirements.txt            # Linux (PySide6, requests, numpy)
+├── requirements-windows.txt    # Windows (+ sounddevice, pycaw, winrt)
+├── win/                        # UI Qt (oficial nos dois)
+├── weather.py / spotify.py / spectrum.py / wallpaper_theme.py
 ├── docs/screenshot.png
 ├── docs/screenshot-settings.png
-└── config/
-    ├── personalizar.py    # city, language, blocks
-    ├── colors.py / themes.py
-    ├── layout.py / general.py
-    └── i18n.py
+└── config/                     # cidade, idioma, cores, layout
 ```
 
 ## License / Licença

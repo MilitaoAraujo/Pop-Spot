@@ -1,0 +1,12 @@
+# Dependências da UI Windows (pip install -r requirements-windows.txt)
+PySide6>=6.6.0
+requests>=2.28.0
+numpy>=1.23.0
+sounddevice>=0.4.6
+pycaw>=20240210
+comtypes>=1.4.0
+winrt-runtime>=2.3.0
+winrt-Windows.Foundation>=2.3.0
+winrt-Windows.Media.Control>=2.3.0
+winrt-Windows.Storage>=2.3.0
+winrt-Windows.Storage.Streams>=2.3.0

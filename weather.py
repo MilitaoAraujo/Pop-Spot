@@ -2,14 +2,21 @@
 import json
 import logging
 import subprocess
+import sys
 import time
 from pathlib import Path
 
 import requests
-from weather_icons import (
-    SOL, NUVEM, SOL_NUVEM, CHUVA, SOL_CHUVA, TEMPESTADE, NEVE, NEBLINA,
-    renderizar as renderizar_icone,
-)
+
+# Nomes dos ícones (o desenho GTK fica em weather_icons — import tardio).
+SOL = "sol"
+NUVEM = "nuvem"
+SOL_NUVEM = "sol_nuvem"
+CHUVA = "chuva"
+SOL_CHUVA = "sol_chuva"
+TEMPESTADE = "tempestade"
+NEVE = "neve"
+NEBLINA = "neblina"
 
 log = logging.getLogger("widget.weather")
 
@@ -80,6 +87,7 @@ def tipo_icone(codigo: int) -> str:
 
 
 def icone_pixbuf(codigo: int, tamanho: int = 36, cor: str = "#e0e0e0"):
+    from weather_icons import renderizar as renderizar_icone
     return renderizar_icone(tipo_icone(codigo), tamanho=tamanho, cor=cor)
 
 
@@ -448,7 +456,7 @@ def eh_chuva_forte(dados: dict | None) -> bool:
 
 
 def notificar_chuva_forte(dados: dict) -> bool:
-    """Envia notify-send se for chuva forte e ainda não avisou recentemente."""
+    """Aviso de chuva forte (notify-send no Linux, balloon no Windows)."""
     if not eh_chuva_forte(dados):
         return False
     try:
@@ -461,7 +469,6 @@ def notificar_chuva_forte(dados: dict) -> bool:
     estado = _ler_estado_chuva()
     agora = time.time()
     codigo = int(dados.get("codigo") or 0)
-    # Evita spam: mesmo código em < 3h
     if (
         estado.get("codigo") == codigo
         and agora - float(estado.get("ts", 0)) < 3 * 3600
@@ -471,6 +478,19 @@ def notificar_chuva_forte(dados: dict) -> bool:
     from config.i18n import t
     cidade = dados.get("cidade") or t("rain_region")
     desc = dados.get("descricao") or t("rain_title")
+    titulo, corpo = t("rain_title"), f"{cidade}: {desc}"
+    ok = False
+    if sys.platform == "win32":
+        ok = _notificar_windows(titulo, corpo)
+    else:
+        ok = _notificar_linux(titulo, corpo)
+    if not ok:
+        return False
+    _gravar_estado_chuva({"codigo": codigo, "ts": agora, "cidade": cidade})
+    return True
+
+
+def _notificar_linux(titulo: str, corpo: str) -> bool:
     try:
         subprocess.run(
             [
@@ -478,17 +498,40 @@ def notificar_chuva_forte(dados: dict) -> bool:
                 "-u", "critical",
                 "-a", "Pop Spot",
                 "-i", "weather-showers",
-                t("rain_title"),
-                f"{cidade}: {desc}",
+                titulo,
+                corpo,
             ],
             check=False,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=5,
         )
+        return True
     except Exception as e:
         log.debug("notify-send: %s", e)
         return False
 
-    _gravar_estado_chuva({"codigo": codigo, "ts": agora, "cidade": cidade})
-    return True
+
+def _notificar_windows(titulo: str, corpo: str) -> bool:
+    import json
+    t_js, c_js = json.dumps(titulo), json.dumps(corpo)
+    ps = (
+        "Add-Type -AssemblyName System.Windows.Forms; "
+        "Add-Type -AssemblyName System.Drawing; "
+        "$n = New-Object System.Windows.Forms.NotifyIcon; "
+        "$n.Icon = [System.Drawing.SystemIcons]::Information; "
+        "$n.Visible = $true; "
+        f"$n.ShowBalloonTip(8000, {t_js}, {c_js}, "
+        "[System.Windows.Forms.ToolTipIcon]::Info); "
+        "Start-Sleep -Seconds 8; $n.Dispose()"
+    )
+    try:
+        subprocess.Popen(
+            ["powershell", "-NoProfile", "-STA", "-WindowStyle", "Hidden", "-Command", ps],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return True
+    except Exception as e:
+        log.debug("toast win: %s", e)
+        return False

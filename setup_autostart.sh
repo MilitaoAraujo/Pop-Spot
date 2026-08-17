@@ -16,7 +16,7 @@ mkdir -p "$SYSTEMD_USER_DIR"
 
 cat > "$SERVICE_FILE" << EOF
 [Unit]
-Description=Desktop Widget (GTK — clock · weather · Spotify)
+Description=Pop Spot (clock · weather · Spotify)
 PartOf=graphical-session.target
 # Espera sessão gráfica subir primeiro (COSMIC/GNOME trazem este alvo no login).
 After=graphical-session.target

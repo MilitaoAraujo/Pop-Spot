@@ -1,11 +1,13 @@
 # Extrai cores do wallpaper e monta um tema pro widget
-# Funciona no COSMIC (Pop!_OS) e com fallbacks comuns
+# Linux: COSMIC / GNOME. Windows: papel de parede do sistema.
 
 from __future__ import annotations
 
 import logging
 import math
+import os
 import re
+import sys
 from collections import Counter
 from pathlib import Path
 
@@ -14,8 +16,32 @@ log = logging.getLogger("widget.wallpaper")
 _EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
 
 
+def _localizar_windows() -> str | None:
+    import ctypes
+
+    buf = ctypes.create_unicode_buffer(1024)
+    spi_get = 0x0073
+    ok = ctypes.windll.user32.SystemParametersInfoW(spi_get, len(buf), buf, 0)
+    if ok and buf.value:
+        p = Path(buf.value)
+        if p.is_file():
+            return str(p)
+    trans = (
+        Path(os.environ.get("APPDATA", ""))
+        / "Microsoft" / "Windows" / "Themes" / "TranscodedWallpaper"
+    )
+    if trans.is_file():
+        return str(trans)
+    return None
+
+
 def localizar_wallpaper() -> str | None:
     """Retorna o caminho da imagem de fundo atual, se houver."""
+    if sys.platform == "win32":
+        win = _localizar_windows()
+        if win:
+            return win
+
     home = Path.home()
     candidatos: list[Path] = []
 
@@ -90,6 +116,42 @@ def _dist(a: tuple[int, int, int], b: tuple[int, int, int]) -> float:
     return math.sqrt(sum((x - y) ** 2 for x, y in zip(a, b)))
 
 
+def _amostrar_qimage(caminho: str, lado: int) -> list[tuple[int, int, int]]:
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QImage
+
+    img = QImage()
+    if not img.load(caminho):
+        for fmt in ("JPG", "JPEG", "PNG", "BMP", "WEBP"):
+            if img.load(caminho, fmt):
+                break
+    if img.isNull():
+        raise RuntimeError("QImage não carregou a imagem")
+    img = img.convertToFormat(QImage.Format.Format_RGB32)
+    img = img.scaled(
+        lado, lado,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+    pixels: list[tuple[int, int, int]] = []
+    for y in range(img.height()):
+        for x in range(img.width()):
+            c = img.pixelColor(x, y)
+            pixels.append((c.red(), c.green(), c.blue()))
+    if not pixels:
+        raise RuntimeError("imagem vazia")
+    return pixels
+
+
+def _amostrar_pil(caminho: str, lado: int) -> list[tuple[int, int, int]]:
+    from PIL import Image
+
+    with Image.open(caminho) as im:
+        im = im.convert("RGB")
+        im.thumbnail((lado, lado))
+        return list(im.getdata())
+
+
 def _amostrar_pixbuf(caminho: str, lado: int = 64) -> list[tuple[int, int, int]]:
     import gi
     gi.require_version("GdkPixbuf", "2.0")
@@ -103,14 +165,26 @@ def _amostrar_pixbuf(caminho: str, lado: int = 64) -> list[tuple[int, int, int]]
     row = pb.get_rowstride()
     data = pb.get_pixels()
     pixels: list[tuple[int, int, int]] = []
-    # Amostra grade (pula alguns pixels se muito grande)
-    step = 1
-    for y in range(0, h, step):
+    for y in range(h):
         off = y * row
-        for x in range(0, w, step):
+        for x in range(w):
             i = off + x * n
             pixels.append((data[i], data[i + 1], data[i + 2]))
     return pixels
+
+
+def _amostrar(caminho: str, lado: int = 64) -> list[tuple[int, int, int]]:
+    if sys.platform == "win32":
+        ordem = (_amostrar_qimage, _amostrar_pil, _amostrar_pixbuf)
+    else:
+        ordem = (_amostrar_pixbuf, _amostrar_qimage, _amostrar_pil)
+    erros: list[str] = []
+    for fn in ordem:
+        try:
+            return fn(caminho, lado)
+        except Exception as e:
+            erros.append(f"{fn.__name__}: {e}")
+    raise RuntimeError("; ".join(erros) or "falha ao amostrar wallpaper")
 
 
 def _cores_dominantes(pixels: list[tuple[int, int, int]], n: int = 8) -> list[tuple[int, int, int]]:
@@ -144,7 +218,7 @@ def montar_tema(caminho: str) -> dict[str, str | float]:
       COR_BASE, COR_SUPERFICIE, COR_TEXTO, COR_TEXTO_SECUNDARIO,
       COR_TEXTO_TERCIARIO, COR_DESTAQUE, COR_BOTOES_SPOTIFY, OPACIDADE_FUNDO
     """
-    pixels = _amostrar_pixbuf(caminho)
+    pixels = _amostrar(caminho)
     dominantes = _cores_dominantes(pixels)
     media = (
         sum(p[0] for p in pixels) // max(1, len(pixels)),
@@ -214,7 +288,7 @@ def adaptar_ao_wallpaper() -> tuple[dict[str, str | float] | None, str | None]:
     """
     caminho = localizar_wallpaper()
     if not caminho:
-        return None, "Wallpaper não encontrado (use uma imagem nas Configurações do COSMIC)."
+        return None, "Wallpaper não encontrado. Defina uma imagem de fundo no sistema."
     try:
         tema = montar_tema(caminho)
         log.info("tema do wallpaper %s → %s", caminho, tema.get("COR_DESTAQUE"))
@@ -226,3 +300,29 @@ def adaptar_ao_wallpaper() -> tuple[dict[str, str | float] | None, str | None]:
 
 def caminho_estado_cosmic() -> Path:
     return Path.home() / ".local/state/cosmic/com.system76.CosmicBackground/v1/wallpapers"
+
+
+def assinatura_wallpaper() -> tuple:
+    """Caminho + mtimes para detectar troca de fundo (COSMIC, GNOME ou Windows)."""
+    caminho = localizar_wallpaper()
+    candidatos: list[Path] = []
+    if caminho:
+        candidatos.append(Path(caminho))
+    candidatos.append(caminho_estado_cosmic())
+    if sys.platform == "win32":
+        candidatos.append(
+            Path(os.environ.get("APPDATA", ""))
+            / "Microsoft" / "Windows" / "Themes" / "TranscodedWallpaper"
+        )
+    mts: list[float | None] = []
+    vistos: set[str] = set()
+    for p in candidatos:
+        chave = str(p)
+        if chave in vistos:
+            continue
+        vistos.add(chave)
+        try:
+            mts.append(p.stat().st_mtime if p.is_file() else None)
+        except OSError:
+            mts.append(None)
+    return (caminho, tuple(mts))

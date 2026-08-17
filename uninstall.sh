@@ -15,6 +15,7 @@ rm -f "$SERVICE_FILE" "$LEGACY_DESKTOP"
 systemctl --user daemon-reload 2>/dev/null || true
 
 pkill -f "${SCRIPT_DIR}/main.py" 2>/dev/null || true
+pkill -f "${SCRIPT_DIR}/win/main.py" 2>/dev/null || true
 
 echo "Pop Spot autostart removed."
 echo "The project folder was not deleted."

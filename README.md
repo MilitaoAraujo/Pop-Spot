@@ -101,7 +101,7 @@ Right-click: Settings, Reload weather, Reset position, Quit.
 
 ## Português
 
-Widget flutuante na mesa: hora, calendário, clima (previsão de 3 dias), controles do Spotify e espectro de áudio. Arraste, troque o tema, esconda blocos. As configs aplicam **sem reiniciar**.
+Widget flutuante na área de trabalho: hora, calendário, clima (previsão de 3 dias), controles do Spotify e espectro de áudio. Arraste, troque o tema, esconda blocos. As configs aplicam **sem reiniciar**.
 
 ### Funcionalidades
 
@@ -168,7 +168,7 @@ Lado e tamanho: `config/layout.py` (`LADO`, `ESCALA` 0.80–1.30). Posição ao 
 
 ### COSMIC / Wayland
 
-O launcher usa **layer-shell** no Wayland (some da taskbar, sem borda). Camada `BOTTOM` + `exclusive_zone=-1` evita o cursor de “mãozinha” na mesa. Sem layer-shell, cai no X11.
+O launcher usa **layer-shell** no Wayland (some da taskbar, sem borda). Camada `BOTTOM` + `exclusive_zone=-1` evita o cursor de “mãozinha” na área de trabalho. Sem layer-shell, cai no X11.
 
 Menu do botão direito: Configurações, Recarregar clima, Resetar posição, Sair.
 

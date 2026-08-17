@@ -43,18 +43,6 @@ def comando(metodo: str) -> bool:
         return False
 
 
-def obter_volume() -> float | None:
-    """Volume MPRIS 0.0–1.0, ou None se indisponível."""
-    _obj, props = _props()
-    if not props:
-        return None
-    try:
-        return float(props.Get("org.mpris.MediaPlayer2.Player", "Volume"))
-    except Exception as e:
-        log.debug("volume get: %s", e)
-        return None
-
-
 def definir_volume(valor: float) -> bool:
     """Define volume MPRIS (0.0–1.0)."""
     _obj, props = _props()

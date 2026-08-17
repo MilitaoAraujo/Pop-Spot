@@ -11,24 +11,23 @@ import locale
 import logging
 import os
 import re
+import sys
 from pathlib import Path
 
 from config import (
     LARGURA, MARGEM_DIREITA, TAMANHO_CAPA, LADO, POS_X, POS_Y, ESCALA,
-    ATUALIZAR_CLIMA_SEG, ATUALIZAR_SPOTIFY_SEG,
-    TEXTO_TOCANDO, TEXTO_PAUSADO, PREFIXO_PAUSADO, TEXTO_SEM_SPOTIFY,
+    ATUALIZAR_CLIMA_SEG, ATUALIZAR_SPOTIFY_SEG, VERIFICAR_ARQUIVOS_SEG, VERSAO,
+    PREFIXO_PAUSADO,
     ICONE_SPOTIFY_ANTERIOR, ICONE_SPOTIFY_PROXIMO,
     ICONE_SPOTIFY_REPRODUZIR, ICONE_SPOTIFY_PAUSAR,
-    TOOLTIP_SPOTIFY_ANTERIOR, TOOLTIP_SPOTIFY_PLAY, TOOLTIP_SPOTIFY_PAUSE, TOOLTIP_SPOTIFY_PROXIMO,
-    TOOLTIP_CONFIGURACOES, TOOLTIP_CONFIG_VOLTAR,
-    TEXTO_BUSCANDO_CLIMA, TEXTO_SEM_CONEXAO, FORMATO_VENTO_UMIDADE,
-    UNIDADE_TEMPERATURA, DIAS_SEMANA, TEXTO_PROGRESSO_DIA, CIDADE,
+    UNIDADE_TEMPERATURA, CIDADE,
     COR_BASE, COR_SUPERFICIE, COR_TEXTO, COR_TEXTO_SECUNDARIO, COR_TEXTO_TERCIARIO,
     COR_DESTAQUE, COR_BOTOES_SPOTIFY, OPACIDADE_FUNDO, PRESETS, RAIO_BORDA,
     MOSTRAR_CALENDARIO, MOSTRAR_SPOTIFY, MOSTRAR_ESPECTRO, MOSTRAR_PREVISAO,
     NOTIFICAR_CHUVA_FORTE, ADAPTAR_WALLPAPER_AUTO,
 )
 from css     import gerar_css
+from config.i18n import t, idioma, STRINGS
 import weather  as mod_clima
 import spotify  as mod_spotify
 import wallpaper_theme as mod_wall
@@ -55,14 +54,21 @@ def _px(n: float) -> int:
 
 # Cores editáveis em config/colors.py (acima das derivações automáticas)
 _CORES_EDITAVEIS = (
-    ("COR_BASE",             "Fundo principal",          COR_BASE),
-    ("COR_SUPERFICIE",       "Superfície dos botões",    COR_SUPERFICIE),
-    ("COR_TEXTO",            "Texto principal",          COR_TEXTO),
-    ("COR_TEXTO_SECUNDARIO", "Texto secundário",         COR_TEXTO_SECUNDARIO),
-    ("COR_TEXTO_TERCIARIO",  "Texto terciário",          COR_TEXTO_TERCIARIO),
-    ("COR_DESTAQUE",         "Destaque",                 COR_DESTAQUE),
-    ("COR_BOTOES_SPOTIFY",   "Ícones dos controles",     COR_BOTOES_SPOTIFY),
+    ("COR_BASE",             "cor_base",       COR_BASE),
+    ("COR_SUPERFICIE",       "cor_superficie", COR_SUPERFICIE),
+    ("COR_TEXTO",            "cor_texto",      COR_TEXTO),
+    ("COR_TEXTO_SECUNDARIO", "cor_texto_sec",  COR_TEXTO_SECUNDARIO),
+    ("COR_TEXTO_TERCIARIO",  "cor_texto_ter",  COR_TEXTO_TERCIARIO),
+    ("COR_DESTAQUE",         "cor_destaque",   COR_DESTAQUE),
+    ("COR_BOTOES_SPOTIFY",   "cor_botoes",     COR_BOTOES_SPOTIFY),
 )
+
+_PRESET_I18N = {
+    "Roxo": "preset_roxo",
+    "Azul": "preset_azul",
+    "Mono": "preset_mono",
+    "Verde": "preset_verde",
+}
 
 
 def _hex_para_rgba(hex_cor: str) -> Gdk.RGBA:
@@ -153,19 +159,17 @@ class _EspectroBarras(Gtk.Box):
 class _BotaoEngrenagem(Gtk.Button):
     """Botão de engrenagem — abre a tela de configurações."""
 
-    def __init__(self, tooltip: str):
+    def __init__(self, tooltip: str = ""):
         super().__init__(label="⚙")
         self._aberto = False
-        self._tooltip_abrir = tooltip
-        self._tooltip_voltar = TOOLTIP_CONFIG_VOLTAR
-        self.set_tooltip_text(tooltip)
+        self.set_tooltip_text(tooltip or t("settings_tip"))
         self.set_relief(Gtk.ReliefStyle.NONE)
         self.set_focus_on_click(False)
         self.get_style_context().add_class("btnEngrenagem")
 
     def set_aberto(self, v: bool):
         self._aberto = v
-        self.set_tooltip_text(self._tooltip_voltar if v else self._tooltip_abrir)
+        self.set_tooltip_text(t("back_tip") if v else t("settings_tip"))
         ctx = self.get_style_context()
         if v:
             ctx.add_class("btnEngrenagemAtivo")
@@ -201,10 +205,9 @@ class WidgetDesktop(Gtk.Window):
         self._previsao_widgets = []
         self._wall_mtime = None
         self._wall_path_atual = None
-
-        _cfg = Path(__file__).parent / "config"
-        self._config_arquivos = [p for p in _cfg.glob("*.py") if not p.name.startswith("_")]
-        self._config_mtimes   = {p: p.stat().st_mtime for p in self._config_arquivos}
+        self._idioma_lock = False
+        self._restart_id = 0
+        self._watch_mtimes = self._mtime_arquivos()
 
         self._aplicar_css()
         self._configurar_janela()
@@ -212,7 +215,6 @@ class WidgetDesktop(Gtk.Window):
         self._aplicar_visibilidade()
         self._aplicar_escala_widgets()
         self._iniciar_atualizacoes()
-        self._espectro.start()
 
     # ── Configuração da janela ────────────────────────────────────────────
 
@@ -628,7 +630,7 @@ class WidgetDesktop(Gtk.Window):
         rodape = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         rodape.set_halign(Gtk.Align.FILL)
         rodape.set_margin_top(10)
-        self.btn_config = _BotaoEngrenagem(TOOLTIP_CONFIGURACOES)
+        self.btn_config = _BotaoEngrenagem()
         self.btn_config.connect("clicked", self._on_toggle_config)
         spacer = Gtk.Box()
         spacer.set_hexpand(True)
@@ -690,7 +692,7 @@ class WidgetDesktop(Gtk.Window):
         caixa_clima.pack_start(linha_temp, False, False, 0)
 
         self.lbl_cidade    = self._rotulo("cidadeClima",    "--",               Gtk.Align.START)
-        self.lbl_descricao = self._rotulo("descricaoClima", TEXTO_BUSCANDO_CLIMA, Gtk.Align.START)
+        self.lbl_descricao = self._rotulo("descricaoClima", t("seeking_weather"), Gtk.Align.START)
         self.lbl_detalhe   = self._rotulo("detalheClima",   "",                 Gtk.Align.START)
         for w in (self.lbl_cidade, self.lbl_descricao, self.lbl_detalhe):
             caixa_clima.pack_start(w, False, False, 0)
@@ -708,7 +710,7 @@ class WidgetDesktop(Gtk.Window):
         self.img_nota_spotify = Gtk.Image()
         self.img_nota_spotify.set_valign(Gtk.Align.CENTER)
         self._atualizar_nota_spotify()
-        self.lbl_cabecalho_spotify = self._rotulo("cabecalhoSpotify", TEXTO_TOCANDO, Gtk.Align.START)
+        self.lbl_cabecalho_spotify = self._rotulo("cabecalhoSpotify", t("playing"), Gtk.Align.START)
         linha_cabecalho.pack_start(self._tornar_clicavel(self.img_nota_spotify), False, False, 0)
         linha_cabecalho.pack_start(self.lbl_cabecalho_spotify, False, False, 0)
         caixa_spotify.pack_start(linha_cabecalho, False, False, 0)
@@ -721,11 +723,11 @@ class WidgetDesktop(Gtk.Window):
 
         linha_ctrl = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         linha_ctrl.set_halign(Gtk.Align.START)
-        self.btn_spotify_prev = _BotaoMedia("prev", TOOLTIP_SPOTIFY_ANTERIOR)
+        self.btn_spotify_prev = _BotaoMedia("prev", t("prev_track"))
         self.btn_spotify_prev.connect("clicked", self._on_spotify_prev)
-        self.btn_spotify_play = _BotaoMedia("play", TOOLTIP_SPOTIFY_PLAY)
+        self.btn_spotify_play = _BotaoMedia("play", t("play"))
         self.btn_spotify_play.connect("clicked", self._on_spotify_play_pause)
-        self.btn_spotify_next = _BotaoMedia("next", TOOLTIP_SPOTIFY_PROXIMO)
+        self.btn_spotify_next = _BotaoMedia("next", t("next_track"))
         self.btn_spotify_next.connect("clicked", self._on_spotify_next)
         for b in (self.btn_spotify_prev, self.btn_spotify_play, self.btn_spotify_next):
             linha_ctrl.pack_start(b, False, False, 0)
@@ -735,10 +737,11 @@ class WidgetDesktop(Gtk.Window):
         self.scale_volume.set_draw_value(False)
         self.scale_volume.set_size_request(88, -1)
         self.scale_volume.set_valign(Gtk.Align.CENTER)
-        self.scale_volume.set_tooltip_text("Volume")
+        self.scale_volume.set_tooltip_text(t("volume"))
         self.scale_volume.get_style_context().add_class("scaleVolume")
         self.scale_volume.set_sensitive(False)
         self.scale_volume.connect("value-changed", self._on_volume_changed)
+        self._ignorar_scroll_scale(self.scale_volume)
         linha_ctrl.pack_start(self.scale_volume, False, False, 4)
 
         caixa_spotify.pack_start(linha_ctrl, False, False, 8)
@@ -746,7 +749,7 @@ class WidgetDesktop(Gtk.Window):
         self.lbl_titulo     = self._rotulo("tituloMusica",  "", Gtk.Align.START, reticencias=True)
         self.lbl_artista    = self._rotulo("artistaMusica", "", Gtk.Align.START, reticencias=True)
         self.lbl_album      = self._rotulo("albumMusica",   "", Gtk.Align.START, reticencias=True)
-        self.lbl_sem_musica = self._rotulo("semMusica", TEXTO_SEM_SPOTIFY, Gtk.Align.START)
+        self.lbl_sem_musica = self._rotulo("semMusica", t("no_spotify"), Gtk.Align.START)
 
         caixa_info = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         for w in (self.lbl_titulo, self.lbl_artista, self.lbl_album):
@@ -789,23 +792,44 @@ class WidgetDesktop(Gtk.Window):
     def _construir_pagina_config(self):
         pagina = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
 
-        pagina.pack_start(
-            self._rotulo("tituloConfig", "CONFIGURAÇÕES", Gtk.Align.START), False, False, 0)
-        pagina.pack_start(
-            self._rotulo(
-                "dicaConfig", "Alterações aplicam sem reiniciar.", Gtk.Align.START),
-            False, False, 0,
-        )
+        self.lbl_titulo_config = self._rotulo("tituloConfig", t("settings"), Gtk.Align.START)
+        pagina.pack_start(self.lbl_titulo_config, False, False, 0)
+        self.lbl_dica_config = self._rotulo("dicaConfig", t("settings_hint"), Gtk.Align.START)
+        pagina.pack_start(self.lbl_dica_config, False, False, 0)
+        self.lbl_versao = self._rotulo("dicaConfig", t("version", v=VERSAO), Gtk.Align.START)
+        pagina.pack_start(self.lbl_versao, False, False, 0)
+        self.lbl_aviso_wayland = self._rotulo("dicaConfig", t("no_layershell"), Gtk.Align.START)
+        self.lbl_aviso_wayland.set_line_wrap(True)
+        self.lbl_aviso_wayland.set_no_show_all(True)
+        self.lbl_aviso_wayland.set_visible(self._ls is None)
+        pagina.pack_start(self.lbl_aviso_wayland, False, False, 0)
 
         conteudo = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
 
         conteudo.pack_start(self._separador(), False, False, 0)
 
-        conteudo.pack_start(
-            self._rotulo("labelConfig", "Cidade do clima", Gtk.Align.START), False, False, 0)
+        self.lbl_idioma = self._rotulo("labelConfig", t("language"), Gtk.Align.START)
+        conteudo.pack_start(self.lbl_idioma, False, False, 0)
+        self._idioma_group = Gtk.RadioButton.new_with_label(None, "Português")
+        self._idioma_group.get_style_context().add_class("radioConfig")
+        self._radio_en = Gtk.RadioButton.new_with_label_from_widget(self._idioma_group, "English")
+        self._radio_en.get_style_context().add_class("radioConfig")
+        if idioma() == "en":
+            self._radio_en.set_active(True)
+        else:
+            self._idioma_group.set_active(True)
+        self._idioma_group.connect("toggled", self._on_idioma_changed)
+        self._radio_en.connect("toggled", self._on_idioma_changed)
+        linha_lang = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+        linha_lang.pack_start(self._idioma_group, False, False, 0)
+        linha_lang.pack_start(self._radio_en, False, False, 0)
+        conteudo.pack_start(linha_lang, False, False, 0)
+
+        self.lbl_cidade_cfg = self._rotulo("labelConfig", t("city"), Gtk.Align.START)
+        conteudo.pack_start(self.lbl_cidade_cfg, False, False, 0)
         self.entry_cidade = Gtk.Entry()
         self.entry_cidade.set_text(CIDADE or "")
-        self.entry_cidade.set_placeholder_text("Vazio = detectar automaticamente")
+        self.entry_cidade.set_placeholder_text(t("city_placeholder"))
         self.entry_cidade.get_style_context().add_class("entryConfig")
         self._cidade_store = Gtk.ListStore(str, str)  # rótulo, cidade
         self._cidade_completion = Gtk.EntryCompletion()
@@ -821,29 +845,22 @@ class WidgetDesktop(Gtk.Window):
         self.entry_cidade.connect("changed", self._on_cidade_digitando)
         linha_cidade = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         linha_cidade.pack_start(self.entry_cidade, True, True, 0)
-        btn_auto = Gtk.Button(label="Automático")
-        btn_auto.set_tooltip_text("Limpa o campo e usa sua localização")
-        btn_auto.get_style_context().add_class("btnConfigSec")
-        btn_auto.connect("clicked", self._on_cidade_automatica)
-        linha_cidade.pack_start(btn_auto, False, False, 0)
+        self.btn_cidade_auto = Gtk.Button(label=t("city_auto"))
+        self.btn_cidade_auto.set_tooltip_text(t("city_auto_tip"))
+        self.btn_cidade_auto.get_style_context().add_class("btnConfigSec")
+        self.btn_cidade_auto.connect("clicked", self._on_cidade_automatica)
+        linha_cidade.pack_start(self.btn_cidade_auto, False, False, 0)
         conteudo.pack_start(linha_cidade, False, False, 0)
-        conteudo.pack_start(
-            self._rotulo(
-                "dicaConfig",
-                "Digite para ver sugestões. Vazio = automático.\n"
-                "Escolha na lista e clique em Salvar.",
-                Gtk.Align.START,
-            ),
-            False, False, 0,
-        )
+        self.lbl_dica_cidade = self._rotulo("dicaConfig", t("city_hint"), Gtk.Align.START)
+        conteudo.pack_start(self.lbl_dica_cidade, False, False, 0)
 
-        self.chk_chuva = Gtk.CheckButton(label="Avisar chuva forte (notificação)")
+        self.chk_chuva = Gtk.CheckButton(label=t("rain_notify"))
         self.chk_chuva.set_active(bool(NOTIFICAR_CHUVA_FORTE))
         self.chk_chuva.get_style_context().add_class("checkConfig")
         conteudo.pack_start(self.chk_chuva, False, False, 0)
 
-        conteudo.pack_start(
-            self._rotulo("labelConfig", "Unidade de temperatura", Gtk.Align.START), False, False, 0)
+        self.lbl_unidade = self._rotulo("labelConfig", t("temp_unit"), Gtk.Align.START)
+        conteudo.pack_start(self.lbl_unidade, False, False, 0)
 
         self._unidade_group = Gtk.RadioButton.new_with_label(None, "°C")
         self._unidade_group.get_style_context().add_class("radioConfig")
@@ -860,11 +877,11 @@ class WidgetDesktop(Gtk.Window):
         linha_unid.pack_start(radio_f, False, False, 0)
         conteudo.pack_start(linha_unid, False, False, 0)
 
-        conteudo.pack_start(
-            self._rotulo("labelConfig", "Lado da tela", Gtk.Align.START), False, False, 0)
-        self._lado_group = Gtk.RadioButton.new_with_label(None, "Direita")
+        self.lbl_lado = self._rotulo("labelConfig", t("side"), Gtk.Align.START)
+        conteudo.pack_start(self.lbl_lado, False, False, 0)
+        self._lado_group = Gtk.RadioButton.new_with_label(None, t("side_right"))
         self._lado_group.get_style_context().add_class("radioConfig")
-        radio_esq = Gtk.RadioButton.new_with_label_from_widget(self._lado_group, "Esquerda")
+        radio_esq = Gtk.RadioButton.new_with_label_from_widget(self._lado_group, t("side_left"))
         radio_esq.get_style_context().add_class("radioConfig")
         if str(LADO).strip().lower().startswith("esq"):
             radio_esq.set_active(True)
@@ -877,14 +894,14 @@ class WidgetDesktop(Gtk.Window):
         conteudo.pack_start(linha_lado, False, False, 0)
 
         conteudo.pack_start(self._separador(), False, False, 0)
-        conteudo.pack_start(
-            self._rotulo("tituloConfig", "BLOCOS VISÍVEIS", Gtk.Align.START), False, False, 0)
+        self.lbl_blocos = self._rotulo("tituloConfig", t("blocks"), Gtk.Align.START)
+        conteudo.pack_start(self.lbl_blocos, False, False, 0)
 
         caixa_blocos = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        self.chk_calendario = Gtk.CheckButton(label="Calendário e progresso do dia")
-        self.chk_spotify    = Gtk.CheckButton(label="Spotify")
-        self.chk_espectro   = Gtk.CheckButton(label="Espectro de áudio")
-        self.chk_previsao   = Gtk.CheckButton(label="Previsão de 3 dias")
+        self.chk_calendario = Gtk.CheckButton(label=t("block_calendar"))
+        self.chk_spotify    = Gtk.CheckButton(label=t("block_spotify"))
+        self.chk_espectro   = Gtk.CheckButton(label=t("block_spectrum"))
+        self.chk_previsao   = Gtk.CheckButton(label=t("block_forecast"))
         for chk, atual in (
             (self.chk_calendario, MOSTRAR_CALENDARIO),
             (self.chk_spotify,    MOSTRAR_SPOTIFY),
@@ -897,43 +914,38 @@ class WidgetDesktop(Gtk.Window):
         conteudo.pack_start(caixa_blocos, False, False, 0)
 
         conteudo.pack_start(self._separador(), False, False, 0)
-        conteudo.pack_start(
-            self._rotulo("tituloConfig", "CORES", Gtk.Align.START), False, False, 0)
+        self.lbl_cores = self._rotulo("tituloConfig", t("colors"), Gtk.Align.START)
+        conteudo.pack_start(self.lbl_cores, False, False, 0)
 
         # Presets
-        conteudo.pack_start(
-            self._rotulo("labelConfig", "Tema rápido", Gtk.Align.START), False, False, 0)
+        self.lbl_tema = self._rotulo("labelConfig", t("quick_theme"), Gtk.Align.START)
+        conteudo.pack_start(self.lbl_tema, False, False, 0)
         linha_presets = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         linha_presets.set_homogeneous(True)
+        self._preset_btns = []
         for nome_preset in PRESETS:
-            bp = Gtk.Button(label=nome_preset)
+            bp = Gtk.Button(label=t(_PRESET_I18N.get(nome_preset, nome_preset)))
             bp.get_style_context().add_class("btnConfigSec")
             bp.connect("clicked", self._on_aplicar_preset, nome_preset)
             linha_presets.pack_start(bp, True, True, 0)
+            self._preset_btns.append((bp, nome_preset))
         conteudo.pack_start(linha_presets, False, False, 0)
 
-        btn_wall = Gtk.Button(label="Adaptar ao wallpaper")
-        btn_wall.set_tooltip_text("Extrai cores do fundo de tela atual (COSMIC)")
-        btn_wall.get_style_context().add_class("btnConfig")
-        btn_wall.connect("clicked", self._on_adaptar_wallpaper)
-        conteudo.pack_start(btn_wall, False, False, 0)
+        self.btn_wall = Gtk.Button(label=t("adapt_wallpaper"))
+        self.btn_wall.set_tooltip_text(t("adapt_wallpaper_tip"))
+        self.btn_wall.get_style_context().add_class("btnConfig")
+        self.btn_wall.connect("clicked", self._on_adaptar_wallpaper)
+        conteudo.pack_start(self.btn_wall, False, False, 0)
 
-        self.chk_wall_auto = Gtk.CheckButton(label="Atualizar cores quando o wallpaper mudar")
+        self.chk_wall_auto = Gtk.CheckButton(label=t("adapt_wallpaper_auto"))
         self.chk_wall_auto.set_active(bool(ADAPTAR_WALLPAPER_AUTO))
         self.chk_wall_auto.get_style_context().add_class("checkConfig")
         conteudo.pack_start(self.chk_wall_auto, False, False, 0)
-        conteudo.pack_start(
-            self._rotulo(
-                "dicaConfig",
-                "Usa as cores dominantes do wallpaper.\n"
-                "Salvar grava o tema (e a opção automática).",
-                Gtk.Align.START,
-            ),
-            False, False, 0,
-        )
+        self.lbl_dica_wall = self._rotulo("dicaConfig", t("adapt_wallpaper_hint"), Gtk.Align.START)
+        conteudo.pack_start(self.lbl_dica_wall, False, False, 0)
 
-        conteudo.pack_start(
-            self._rotulo("labelConfig", "Tamanho do widget", Gtk.Align.START), False, False, 0)
+        self.lbl_tamanho = self._rotulo("labelConfig", t("widget_size"), Gtk.Align.START)
+        conteudo.pack_start(self.lbl_tamanho, False, False, 0)
         self.scale_tamanho = Gtk.Scale.new_with_range(
             Gtk.Orientation.HORIZONTAL, _ESCALA_MIN, _ESCALA_MAX, 0.05)
         self.scale_tamanho.set_value(float(_escala_f()))
@@ -941,44 +953,35 @@ class WidgetDesktop(Gtk.Window):
         self.scale_tamanho.set_value_pos(Gtk.PositionType.RIGHT)
         self.scale_tamanho.set_digits(2)
         self.scale_tamanho.get_style_context().add_class("scaleConfig")
+        self._ignorar_scroll_scale(self.scale_tamanho, passar_para_config=True)
         conteudo.pack_start(self.scale_tamanho, False, False, 0)
-        conteudo.pack_start(
-            self._rotulo(
-                "dicaConfig",
-                "80%–130%. Fontes, botões e ícones acompanham.",
-                Gtk.Align.START,
-            ),
-            False, False, 0,
-        )
+        self.lbl_dica_tamanho = self._rotulo("dicaConfig", t("widget_size_hint"), Gtk.Align.START)
+        conteudo.pack_start(self.lbl_dica_tamanho, False, False, 0)
 
         # Opacidade
-        conteudo.pack_start(
-            self._rotulo("labelConfig", "Opacidade do fundo", Gtk.Align.START), False, False, 0)
+        self.lbl_opacidade = self._rotulo("labelConfig", t("opacity"), Gtk.Align.START)
+        conteudo.pack_start(self.lbl_opacidade, False, False, 0)
         self.scale_opacidade = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.40, 1.0, 0.01)
         self.scale_opacidade.set_value(float(OPACIDADE_FUNDO))
         self.scale_opacidade.set_draw_value(True)
         self.scale_opacidade.set_value_pos(Gtk.PositionType.RIGHT)
         self.scale_opacidade.set_digits(2)
         self.scale_opacidade.get_style_context().add_class("scaleConfig")
+        self._ignorar_scroll_scale(self.scale_opacidade, passar_para_config=True)
         conteudo.pack_start(self.scale_opacidade, False, False, 0)
 
-        conteudo.pack_start(
-            self._rotulo(
-                "dicaConfig",
-                "Secundário: clima, artista, calendário, progresso.\n"
-                "Terciário: vento/umidade e álbum.",
-                Gtk.Align.START,
-            ),
-            False, False, 0,
-        )
+        self.lbl_dica_cores = self._rotulo("dicaConfig", t("colors_hint"), Gtk.Align.START)
+        conteudo.pack_start(self.lbl_dica_cores, False, False, 0)
 
         self._cores_botoes = {}
-        for nome, rotulo, valor in _CORES_EDITAVEIS:
+        self._cores_labels = {}
+        for nome, chave_i18n, valor in _CORES_EDITAVEIS:
             hex_val = valor if str(valor).startswith("#") else f"#{valor}"
             linha = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-            lbl = self._rotulo("labelConfig", rotulo, Gtk.Align.START)
+            lbl = self._rotulo("labelConfig", t(chave_i18n), Gtk.Align.START)
             lbl.set_hexpand(True)
             lbl.set_xalign(0.0)
+            self._cores_labels[nome] = (lbl, chave_i18n)
 
             entry = Gtk.Entry()
             entry.set_text(hex_val)
@@ -989,7 +992,7 @@ class WidgetDesktop(Gtk.Window):
             entry.get_style_context().add_class("entryHex")
 
             btn = Gtk.ColorButton.new_with_rgba(_hex_para_rgba(hex_val))
-            btn.set_title(rotulo)
+            btn.set_title(t(chave_i18n))
             btn.set_use_alpha(False)
             btn.get_style_context().add_class("btnCor")
             btn.set_size_request(36, 28)
@@ -1008,22 +1011,23 @@ class WidgetDesktop(Gtk.Window):
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroll.set_propagate_natural_height(True)
         scroll.set_max_content_height(460)
+        self._scroll_config = scroll
         scroll.add(conteudo)
         pagina.pack_start(scroll, True, True, 0)
 
         self.lbl_status_config = self._rotulo("statusConfig", "", Gtk.Align.START)
 
-        btn_salvar = Gtk.Button(label="Salvar")
-        btn_salvar.get_style_context().add_class("btnConfig")
-        btn_salvar.connect("clicked", self._on_salvar_config)
+        self.btn_salvar = Gtk.Button(label=t("save"))
+        self.btn_salvar.get_style_context().add_class("btnConfig")
+        self.btn_salvar.connect("clicked", self._on_salvar_config)
 
-        btn_pasta = Gtk.Button(label="Abrir pasta config")
-        btn_pasta.get_style_context().add_class("btnConfigSec")
-        btn_pasta.connect("clicked", self._on_abrir_pasta_config)
+        self.btn_pasta = Gtk.Button(label=t("open_config"))
+        self.btn_pasta.get_style_context().add_class("btnConfigSec")
+        self.btn_pasta.connect("clicked", self._on_abrir_pasta_config)
 
         linha_btns = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        linha_btns.pack_start(btn_salvar, False, False, 0)
-        linha_btns.pack_start(btn_pasta, False, False, 0)
+        linha_btns.pack_start(self.btn_salvar, False, False, 0)
+        linha_btns.pack_start(self.btn_pasta, False, False, 0)
         pagina.pack_start(linha_btns, False, False, 4)
         pagina.pack_start(self.lbl_status_config, False, False, 0)
 
@@ -1053,7 +1057,7 @@ class WidgetDesktop(Gtk.Window):
         if not preset:
             return
         self._preencher_cores_ui(preset)
-        self.lbl_status_config.set_text(f"Tema “{nome_preset}” aplicado — Salvar para confirmar")
+        self.lbl_status_config.set_text(t("theme_applied", name=nome_preset))
 
     def _preencher_cores_ui(self, cores: dict):
         for nome, valor in cores.items():
@@ -1071,7 +1075,7 @@ class WidgetDesktop(Gtk.Window):
                 entry.set_text(valor)
 
     def _on_adaptar_wallpaper(self, _btn):
-        self.lbl_status_config.set_text("Lendo wallpaper…")
+        self.lbl_status_config.set_text(t("reading_wallpaper"))
         threading.Thread(target=self._bg_adaptar_wallpaper, daemon=True).start()
 
     def _bg_adaptar_wallpaper(self):
@@ -1080,11 +1084,11 @@ class WidgetDesktop(Gtk.Window):
 
     def _aplicar_tema_wallpaper(self, tema, info):
         if not tema:
-            self.lbl_status_config.set_text(info or "Não foi possível adaptar")
+            self.lbl_status_config.set_text(info or t("adapt_fail"))
             return False
         self._preencher_cores_ui(tema)
         nome = Path(info).name if info else "wallpaper"
-        self.lbl_status_config.set_text(f"Cores de “{nome}” — Salvar para confirmar")
+        self.lbl_status_config.set_text(t("colors_from", name=nome))
         self._wall_path_atual = info
         return False
 
@@ -1159,6 +1163,8 @@ class WidgetDesktop(Gtk.Window):
                 self.chk_wall_auto.set_active(bool(ADAPTAR_WALLPAPER_AUTO))
             if hasattr(self, "scale_tamanho"):
                 self.scale_tamanho.set_value(float(_escala_f()))
+            self._sincronizar_radio_idioma()
+            self._aplicar_idioma()
             self._stack.set_visible_child_name("config")
             self.btn_config.set_aberto(True)
             self.lbl_status_config.set_text("")
@@ -1184,7 +1190,7 @@ class WidgetDesktop(Gtk.Window):
         self.entry_cidade.set_text("")
         self._cidade_store.clear()
         GLib.idle_add(self._focar_cidade)
-        self.lbl_status_config.set_text("Automático — clique em Salvar para aplicar")
+        self.lbl_status_config.set_text(t("auto_apply"))
 
     def _on_cidade_digitando(self, entry):
         if getattr(self, "_cidade_suggest_id", 0):
@@ -1236,6 +1242,106 @@ class WidgetDesktop(Gtk.Window):
         except Exception:
             os.system(f'xdg-open "{pasta}" >/dev/null 2>&1 &')
 
+    def _sincronizar_radio_idioma(self):
+        if not getattr(self, "_radio_en", None):
+            return
+        self._idioma_lock = True
+        try:
+            if idioma() == "en":
+                self._radio_en.set_active(True)
+            else:
+                self._idioma_group.set_active(True)
+        finally:
+            self._idioma_lock = False
+
+    def _on_idioma_changed(self, radio):
+        if getattr(self, "_idioma_lock", False) or not radio.get_active():
+            return
+        lang = "en" if self._radio_en.get_active() else "pt"
+        if lang == idioma():
+            self._aplicar_idioma()
+            return
+        try:
+            mod_clima.limpar_cache_clima()
+            self._gravar_constantes(
+                Path(__file__).parent / "config" / "personalizar.py",
+                {"IDIOMA": lang},
+            )
+            self._recarregar_config()
+            if getattr(self, "lbl_status_config", None):
+                self.lbl_status_config.set_text(t("saved"))
+        except Exception as e:
+            if getattr(self, "lbl_status_config", None):
+                self.lbl_status_config.set_text(t("save_error", e=e))
+            log.exception("idioma")
+
+    def _aplicar_idioma(self):
+        """Atualiza textos visíveis sem reconstruir a janela."""
+        def _set(w, texto, setter="set_text"):
+            if w is None:
+                return
+            getattr(w, setter)(texto)
+
+        _set(getattr(self, "lbl_titulo_config", None), t("settings"))
+        _set(getattr(self, "lbl_dica_config", None), t("settings_hint"))
+        _set(getattr(self, "lbl_versao", None), t("version", v=VERSAO))
+        _set(getattr(self, "lbl_aviso_wayland", None), t("no_layershell"))
+        if getattr(self, "lbl_aviso_wayland", None) is not None:
+            self.lbl_aviso_wayland.set_visible(self._ls is None)
+            if self._ls is None:
+                self.lbl_aviso_wayland.show()
+            else:
+                self.lbl_aviso_wayland.hide()
+        _set(getattr(self, "lbl_idioma", None), t("language"))
+        _set(getattr(self, "lbl_cidade_cfg", None), t("city"))
+        _set(getattr(self, "entry_cidade", None), t("city_placeholder"), "set_placeholder_text")
+        _set(getattr(self, "btn_cidade_auto", None), t("city_auto"), "set_label")
+        _set(getattr(self, "btn_cidade_auto", None), t("city_auto_tip"), "set_tooltip_text")
+        _set(getattr(self, "lbl_dica_cidade", None), t("city_hint"))
+        _set(getattr(self, "chk_chuva", None), t("rain_notify"), "set_label")
+        _set(getattr(self, "lbl_unidade", None), t("temp_unit"))
+        _set(getattr(self, "lbl_lado", None), t("side"))
+        _set(getattr(self, "_lado_group", None), t("side_right"), "set_label")
+        _set(getattr(self, "_radio_esq", None), t("side_left"), "set_label")
+        _set(getattr(self, "lbl_blocos", None), t("blocks"))
+        _set(getattr(self, "chk_calendario", None), t("block_calendar"), "set_label")
+        _set(getattr(self, "chk_spotify", None), t("block_spotify"), "set_label")
+        _set(getattr(self, "chk_espectro", None), t("block_spectrum"), "set_label")
+        _set(getattr(self, "chk_previsao", None), t("block_forecast"), "set_label")
+        _set(getattr(self, "lbl_cores", None), t("colors"))
+        _set(getattr(self, "lbl_tema", None), t("quick_theme"))
+        for bp, nome_preset in getattr(self, "_preset_btns", []):
+            bp.set_label(t(_PRESET_I18N.get(nome_preset, nome_preset)))
+        _set(getattr(self, "btn_wall", None), t("adapt_wallpaper"), "set_label")
+        _set(getattr(self, "btn_wall", None), t("adapt_wallpaper_tip"), "set_tooltip_text")
+        _set(getattr(self, "chk_wall_auto", None), t("adapt_wallpaper_auto"), "set_label")
+        _set(getattr(self, "lbl_dica_wall", None), t("adapt_wallpaper_hint"))
+        _set(getattr(self, "lbl_tamanho", None), t("widget_size"))
+        _set(getattr(self, "lbl_dica_tamanho", None), t("widget_size_hint"))
+        _set(getattr(self, "lbl_opacidade", None), t("opacity"))
+        _set(getattr(self, "lbl_dica_cores", None), t("colors_hint"))
+        for nome, (lbl, chave) in getattr(self, "_cores_labels", {}).items():
+            lbl.set_text(t(chave))
+            btn = self._cores_botoes.get(nome)
+            if btn is not None:
+                btn.set_title(t(chave))
+        _set(getattr(self, "btn_salvar", None), t("save"), "set_label")
+        _set(getattr(self, "btn_pasta", None), t("open_config"), "set_label")
+        _set(getattr(self, "lbl_prog_dia", None), t("day_progress"))
+        _set(getattr(self, "lbl_sem_musica", None), t("no_spotify"))
+        _set(getattr(self, "scale_volume", None), t("volume"), "set_tooltip_text")
+        if getattr(self, "btn_spotify_prev", None):
+            self.btn_spotify_prev.set_tooltip_text(t("prev_track"))
+            self.btn_spotify_next.set_tooltip_text(t("next_track"))
+        if getattr(self, "btn_config", None):
+            self.btn_config.set_aberto(self.btn_config._aberto)
+        if getattr(self, "lbl_descricao", None):
+            atuais = {STRINGS["pt"]["seeking_weather"], STRINGS["en"]["seeking_weather"]}
+            if self.lbl_descricao.get_text() in atuais:
+                self.lbl_descricao.set_text(t("seeking_weather"))
+        self._cal_dia = -1
+        self._tick_relogio()
+
     def _on_salvar_config(self, _btn):
         cidade = self.entry_cidade.get_text().strip()
         unidade = "°F" if self._radio_f.get_active() else "°C"
@@ -1244,7 +1350,7 @@ class WidgetDesktop(Gtk.Window):
         escala = round(float(self.scale_tamanho.get_value()), 2)
         escala = max(_ESCALA_MIN, min(_ESCALA_MAX, escala))
         cores = {}
-        for nome, _rotulo, _padrao in _CORES_EDITAVEIS:
+        for nome, _chave, _padrao in _CORES_EDITAVEIS:
             entry = self._cores_botoes.get(nome + "_entry")
             btn = self._cores_botoes.get(nome)
             hex_cor = entry.get_text().strip() if entry is not None else ""
@@ -1258,6 +1364,7 @@ class WidgetDesktop(Gtk.Window):
                 Path(__file__).parent / "config" / "personalizar.py",
                 {
                     "CIDADE": cidade,
+                    "IDIOMA": "en" if getattr(self, "_radio_en", None) and self._radio_en.get_active() else "pt",
                     "UNIDADE_TEMPERATURA": unidade,
                     "MOSTRAR_CALENDARIO": self.chk_calendario.get_active(),
                     "MOSTRAR_SPOTIFY": self.chk_spotify.get_active(),
@@ -1286,9 +1393,9 @@ class WidgetDesktop(Gtk.Window):
             self._recarregar_config()
             mod_clima.limpar_cache_clima()
             threading.Thread(target=self._bg_clima, daemon=True).start()
-            self.lbl_status_config.set_text("Salvo")
+            self.lbl_status_config.set_text(t("saved"))
         except Exception as e:
-            self.lbl_status_config.set_text(f"Erro ao salvar: {e}")
+            self.lbl_status_config.set_text(t("save_error", e=e))
             log.exception("salvar config")
 
     @staticmethod
@@ -1315,19 +1422,22 @@ class WidgetDesktop(Gtk.Window):
     def _recarregar_config(self):
         """Recarrega módulos de config/css, atualiza globais e reaplica tudo."""
         import importlib
-        import config.colors, config.personalizar, config.layout, config, css
+        import config.colors, config.personalizar, config.layout, config.themes, config.i18n, config, css
         try:
             importlib.reload(config.colors)
             importlib.reload(config.personalizar)
             importlib.reload(config.layout)
+            importlib.reload(config.themes)
+            importlib.reload(config.i18n)
             importlib.reload(config)
             importlib.reload(css)
         except Exception as e:
             log.exception("recarregar config: %s", e)
             return
 
-        global gerar_css
+        global gerar_css, t, idioma, STRINGS
         from css import gerar_css
+        from config.i18n import t, idioma, STRINGS
 
         g = globals()
         for k in dir(config):
@@ -1335,6 +1445,7 @@ class WidgetDesktop(Gtk.Window):
                 g[k] = getattr(config, k)
 
         self._aplicar_css()
+        self._aplicar_idioma()
         self._aplicar_visibilidade()
         self._aplicar_escala_widgets()
         self._atualizar_nota_spotify()
@@ -1346,7 +1457,7 @@ class WidgetDesktop(Gtk.Window):
                 target=self._bg_capa, args=(self._url_capa_atual,), daemon=True).start()
         mod_clima.limpar_cache_localizacao()
         threading.Thread(target=self._bg_clima, daemon=True).start()
-        self._config_mtimes = {p: p.stat().st_mtime for p in self._config_arquivos}
+        self._watch_mtimes = self._mtime_arquivos()
         self.queue_draw()
         GLib.idle_add(self._medir_altura_natural)
 
@@ -1380,22 +1491,22 @@ class WidgetDesktop(Gtk.Window):
             self.btn_config.set_size_request(_px(32), _px(32))
         for _lbl_dia, img, _lbl_temp in getattr(self, "_previsao_widgets", []):
             img.set_size_request(_px(20), _px(20))
-        # Re-render nota na escala atual
-        try:
-            from weather_icons import renderizar_nota
-            if getattr(self, "img_nota_spotify", None) is not None:
-                self.img_nota_spotify.set_from_pixbuf(
-                    renderizar_nota(tamanho=_px(16), cor=COR_DESTAQUE))
-        except Exception:
-            pass
+        self._atualizar_nota_spotify()
 
     def _aplicar_visibilidade(self):
         self._cal_grid.set_visible(bool(MOSTRAR_CALENDARIO))
         self._caixa_spotify.set_visible(bool(MOSTRAR_SPOTIFY))
-        self.espectro_area.set_visible(bool(MOSTRAR_ESPECTRO))
+        espectro_on = bool(MOSTRAR_ESPECTRO)
+        self.espectro_area.set_visible(espectro_on)
         self._caixa_previsao.set_visible(bool(MOSTRAR_PREVISAO))
+        if espectro_on:
+            self._espectro.start()
+        else:
+            self._espectro.stop()
 
     def _atualizar_nota_spotify(self):
+        if getattr(self, "img_nota_spotify", None) is None:
+            return
         try:
             from weather_icons import renderizar_nota
             self.img_nota_spotify.set_from_pixbuf(
@@ -1413,9 +1524,8 @@ class WidgetDesktop(Gtk.Window):
 
         linha_prog = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         linha_prog.set_halign(Gtk.Align.END)
-        if TEXTO_PROGRESSO_DIA:
-            linha_prog.pack_start(
-                self._rotulo("progLabel", TEXTO_PROGRESSO_DIA, Gtk.Align.END), False, False, 0)
+        self.lbl_prog_dia = self._rotulo("progLabel", t("day_progress"), Gtk.Align.END)
+        linha_prog.pack_start(self.lbl_prog_dia, False, False, 0)
         self.lbl_prog_pct = self._rotulo("progPct", "0%", Gtk.Align.END)
         linha_prog.pack_start(self.lbl_prog_pct, False, False, 0)
         painel.pack_start(linha_prog, False, False, 0)
@@ -1441,8 +1551,8 @@ class WidgetDesktop(Gtk.Window):
         agora = datetime.datetime.now()
         hoje  = agora.day
 
-        for col, h in enumerate(DIAS_SEMANA):
-            lbl = Gtk.Label(label=h)
+        for col in range(7):
+            lbl = Gtk.Label(label=t(f"cal_{col}"))
             lbl.get_style_context().add_class("calHdr")
             self._cal_grid.attach(lbl, col, 0, 1, 1)
 
@@ -1473,6 +1583,35 @@ class WidgetDesktop(Gtk.Window):
         s.get_style_context().add_class("sep")
         s.set_hexpand(True)
         return s
+
+    def _ignorar_scroll_scale(self, scale, passar_para_config=False):
+        """Scroll do mouse não mexe no valor da barra."""
+        scale.add_events(
+            Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK
+        )
+        scale.connect("scroll-event", self._on_scale_scroll, passar_para_config)
+
+    def _on_scale_scroll(self, _scale, event, passar_para_config=False):
+        if passar_para_config:
+            scroll = getattr(self, "_scroll_config", None)
+            if scroll is not None:
+                adj = scroll.get_vadjustment()
+                if adj is not None:
+                    passo = adj.get_step_increment() or 24
+                    delta = 0.0
+                    direction = event.direction
+                    if direction == Gdk.ScrollDirection.UP:
+                        delta = -passo
+                    elif direction == Gdk.ScrollDirection.DOWN:
+                        delta = passo
+                    elif direction == Gdk.ScrollDirection.SMOOTH:
+                        delta = float(event.delta_y) * passo
+                    if delta:
+                        adj.set_value(max(
+                            adj.get_lower(),
+                            min(adj.get_upper() - adj.get_page_size(), adj.get_value() + delta),
+                        ))
+        return True
 
     def _eh_controle_interativo(self, widget) -> bool:
         """True se o clique foi em botão/campo/checkbox (não deve iniciar arrasto)."""
@@ -1538,11 +1677,15 @@ class WidgetDesktop(Gtk.Window):
 
     def _mostrar_menu_contexto(self, event):
         menu = Gtk.Menu()
+        item_v = Gtk.MenuItem(label=t("version", v=VERSAO))
+        item_v.set_sensitive(False)
+        menu.append(item_v)
+        menu.append(Gtk.SeparatorMenuItem())
         for rotulo, handler in (
-            ("Configurações",    self._menu_configuracoes),
-            ("Recarregar clima",  self._menu_recarregar_clima),
-            ("Resetar posição",   self._menu_resetar_posicao),
-            ("Sair",              self._menu_sair),
+            (t("menu_settings"), self._menu_configuracoes),
+            (t("menu_reload_weather"), self._menu_recarregar_clima),
+            (t("menu_reset_pos"), self._menu_resetar_posicao),
+            (t("menu_quit"), self._menu_sair),
         ):
             item = Gtk.MenuItem(label=rotulo)
             item.connect("activate", handler)
@@ -1638,7 +1781,7 @@ class WidgetDesktop(Gtk.Window):
     # ── Visualizador de espectro ──────────────────────────────────────────
 
     def _tick_espectro(self):
-        if self.espectro_area.get_visible():
+        if MOSTRAR_ESPECTRO and self.espectro_area.get_visible():
             self.espectro_area.set_levels(self._espectro.get_bars())
         return True
 
@@ -1656,8 +1799,8 @@ class WidgetDesktop(Gtk.Window):
 
         self._tick_spotify()
         GLib.timeout_add_seconds(ATUALIZAR_SPOTIFY_SEG, self._tick_spotify)
-        GLib.timeout_add(67, self._tick_espectro)
-        GLib.timeout_add(1500, self._verificar_config)
+        GLib.timeout_add(100, self._tick_espectro)
+        GLib.timeout_add_seconds(max(1, int(VERIFICAR_ARQUIVOS_SEG)), self._verificar_arquivos)
         # Memoriza wallpaper atual; se auto estiver ligado, reage a mudanças
         self._wall_path_atual = mod_wall.localizar_wallpaper()
         est = mod_wall.caminho_estado_cosmic()
@@ -1703,13 +1846,78 @@ class WidgetDesktop(Gtk.Window):
             log.warning("auto wallpaper: %s", e)
         return False
 
-    # ── Hot reload por mtime ────────────────────────────────────────────
+    # ── Hot reload / reinício ao salvar arquivos ─────────────────────────
 
-    def _verificar_config(self):
-        if any(p.stat().st_mtime != self._config_mtimes.get(p) for p in self._config_arquivos):
-            log.info("configuração alterada — recarregando sem reiniciar")
+    @staticmethod
+    def _arquivos_watch() -> list:
+        raiz = Path(__file__).resolve().parent
+        arquivos = []
+        for p in sorted(raiz.glob("*.py")):
+            arquivos.append(p)
+        cfg = raiz / "config"
+        if cfg.is_dir():
+            for p in sorted(cfg.glob("*.py")):
+                if not p.name.startswith("_"):
+                    arquivos.append(p)
+        return arquivos
+
+    def _mtime_arquivos(self) -> dict:
+        m = {}
+        for p in self._arquivos_watch():
+            try:
+                m[p] = p.stat().st_mtime
+            except OSError:
+                pass
+        return m
+
+    @staticmethod
+    def _arquivo_e_hot(p: Path) -> bool:
+        """Config/css/i18n aplicam sem reiniciar; o resto do código reinicia."""
+        if p.name == "css.py":
+            return True
+        return p.parent.name == "config"
+
+    def _verificar_arquivos(self):
+        atuais = self._mtime_arquivos()
+        antigos = self._watch_mtimes
+        mudou_hot = False
+        mudou_codigo = False
+        for p, mt in atuais.items():
+            if antigos.get(p) != mt:
+                if self._arquivo_e_hot(p):
+                    mudou_hot = True
+                else:
+                    mudou_codigo = True
+        self._watch_mtimes = atuais
+        if mudou_codigo:
+            log.warning("código alterado — o widget vai reiniciar")
+            self._agendar_reinicio()
+        elif mudou_hot:
+            log.info("config/css alterados — aplicando sem reiniciar")
             self._recarregar_config()
         return True
+
+    def _agendar_reinicio(self):
+        if getattr(self, "_restart_id", 0):
+            GLib.source_remove(self._restart_id)
+        self._restart_id = GLib.timeout_add(800, self._reiniciar_processo)
+
+    def _reiniciar_processo(self):
+        self._restart_id = 0
+        log.warning("reiniciando Pop Spot para aplicar o código novo")
+        try:
+            self._espectro.stop()
+        except Exception:
+            pass
+        raiz = Path(__file__).resolve().parent
+        main = raiz / "main.py"
+        os.chdir(raiz)
+        try:
+            os.execv(sys.executable, [sys.executable, str(main)])
+        except Exception:
+            log.exception("falha ao reiniciar — saindo para o serviço subir de novo")
+            Gtk.main_quit()
+        return False
 
     # ── Relógio ───────────────────────────────────────────────────────────
 
@@ -1717,8 +1925,9 @@ class WidgetDesktop(Gtk.Window):
         agora = datetime.datetime.now()
         self.lbl_hora.set_text(agora.strftime("%H"))
         self.lbl_minuto.set_text(agora.strftime("%M"))
-        self.lbl_diasem.set_text(agora.strftime("%A").upper())
-        self.lbl_data.set_text(agora.strftime("%d / %B / %Y").upper())
+        self.lbl_diasem.set_text(t(f"weekday_{agora.weekday()}").upper())
+        self.lbl_data.set_text(
+            f"{agora.day:02d} / {t(f'month_{agora.month}').upper()} / {agora.year}")
 
         seg  = agora.hour * 3600 + agora.minute * 60 + agora.second
         prog = seg / 86400
@@ -1782,7 +1991,7 @@ class WidgetDesktop(Gtk.Window):
             self.lbl_cidade.set_text(dados["cidade"])
             self.lbl_descricao.set_text(dados["descricao"])
             self.lbl_detalhe.set_text(
-                FORMATO_VENTO_UMIDADE.format(vento=dados["vento_ms"], umidade=dados["umidade"])
+                t("wind_hum", vento=dados["vento_ms"], umidade=dados["umidade"])
             )
             self._atualizar_previsao(dados.get("previsao") or [])
             if NOTIFICAR_CHUVA_FORTE and not dados.get("cache"):
@@ -1791,7 +2000,7 @@ class WidgetDesktop(Gtk.Window):
                 except Exception as e:
                     log.debug("notificar chuva: %s", e)
         else:
-            self.lbl_cidade.set_text(TEXTO_SEM_CONEXAO)
+            self.lbl_cidade.set_text(t("offline"))
             self.lbl_descricao.set_text("")
             self.lbl_detalhe.set_text("")
         GLib.idle_add(self._medir_altura_natural)
@@ -1853,11 +2062,11 @@ class WidgetDesktop(Gtk.Window):
         if dados:
             self.btn_spotify_play.set_tipo("pause" if tocando else "play")
             self.btn_spotify_play.set_tooltip_text(
-                TOOLTIP_SPOTIFY_PAUSE if tocando else TOOLTIP_SPOTIFY_PLAY)
+                t("pause") if tocando else t("play"))
 
         self.lbl_sem_musica.set_visible(not spotify_aberto)
         self.lbl_cabecalho_spotify.set_text(
-            (TEXTO_PAUSADO if pausado else TEXTO_TOCANDO) if dados else "")
+            (t("paused") if pausado else t("playing")) if dados else "")
 
         if tocando or pausado:
             prefixo = PREFIXO_PAUSADO if pausado else ""

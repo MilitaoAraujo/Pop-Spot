@@ -63,6 +63,18 @@ _DESC_PT = {
 _loc_cache: dict | None = None
 
 
+def _lang() -> str:
+    try:
+        from config.i18n import idioma
+        return idioma()
+    except Exception:
+        return "pt"
+
+
+def _api_lang() -> str:
+    return "en" if _lang() == "en" else "pt"
+
+
 def tipo_icone(codigo: int) -> str:
     return _ICONES.get(codigo, SOL_NUVEM)
 
@@ -138,6 +150,8 @@ def _gravar_estado_chuva(estado: dict):
 
 def _traduzir(desc: str) -> str:
     if not desc:
+        return desc
+    if _lang() == "en":
         return desc
     low = desc.lower()
     if any(p in low for p in ("chuva", "nublado", "céu", "garoa", "neve", "neblina", "enso")):
@@ -219,7 +233,6 @@ def _resolver_alvo():
     from config import CIDADE
     cfg = (CIDADE or "").strip()
     if cfg:
-        limpar_cache_localizacao()
         # coords manuais "lat,lon"
         if "," in cfg:
             try:
@@ -238,21 +251,23 @@ def _resolver_alvo():
 def _dias_semana_pt(iso_date: str) -> str:
     try:
         import datetime
+        from config.i18n import t
         d = datetime.date.fromisoformat(iso_date[:10])
-        nomes = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
-        return nomes[d.weekday()]
+        return t(f"fc_{d.weekday()}")
     except Exception:
         return iso_date[5:10]
 
 
 def _buscar_wttr(alvo: str, cidade_exibir):
+    lang = _api_lang()
+    accept = "en-US,en;q=0.9" if lang == "en" else "pt-BR,pt;q=0.9"
     url = (
-        f"https://wttr.in/{requests.utils.quote(alvo, safe=',.-')}?format=j1&lang=pt"
-        if alvo else "https://wttr.in/?format=j1&lang=pt"
+        f"https://wttr.in/{requests.utils.quote(alvo, safe=',.-')}?format=j1&lang={lang}"
+        if alvo else f"https://wttr.in/?format=j1&lang={lang}"
     )
     d = requests.get(
         url, timeout=10,
-        headers={"Accept-Language": "pt-BR,pt;q=0.9", "User-Agent": "desktop-widget/1.0"},
+        headers={"Accept-Language": accept, "User-Agent": "desktop-widget/1.0"},
     ).json()
     cc = d["current_condition"][0]
     area = d["nearest_area"][0]
@@ -284,7 +299,7 @@ def _geocode_cidade(nome: str):
     try:
         r = requests.get(
             "https://geocoding-api.open-meteo.com/v1/search",
-            params={"name": nome, "count": 1, "language": "pt"},
+            params={"name": nome, "count": 1, "language": _api_lang()},
             timeout=8,
         ).json()
         results = r.get("results") or []
@@ -298,6 +313,7 @@ def _geocode_cidade(nome: str):
 
 
 def _buscar_open_meteo(lat, lon, cidade_exibir):
+    from config.i18n import t
     r = requests.get(
         "https://api.open-meteo.com/v1/forecast",
         params={
@@ -334,9 +350,9 @@ def _buscar_open_meteo(lat, lon, cidade_exibir):
         "temp_c": temp_c,
         "temp_f": int(round(temp_c * 9 / 5 + 32)),
         "descricao": {
-            SOL: "Céu limpo", SOL_NUVEM: "Parcialmente nublado", NUVEM: "Nublado",
-            CHUVA: "Chuva", SOL_CHUVA: "Pancadas de chuva", TEMPESTADE: "Tempestade",
-            NEVE: "Neve", NEBLINA: "Neblina",
+            SOL: t("wx_clear"), SOL_NUVEM: t("wx_partly"), NUVEM: t("wx_cloudy"),
+            CHUVA: t("wx_rain"), SOL_CHUVA: t("wx_showers"), TEMPESTADE: t("wx_storm"),
+            NEVE: t("wx_snow"), NEBLINA: t("wx_fog"),
         }.get(tipo, "—"),
         "umidade": str(int(round(cur["relative_humidity_2m"]))),
         "vento_ms": round(float(cur["wind_speed_10m"]), 1),
@@ -397,7 +413,7 @@ def sugerir_cidades(texto: str, limite: int = 8) -> list[dict]:
     try:
         r = requests.get(
             "https://geocoding-api.open-meteo.com/v1/search",
-            params={"name": q, "count": limite, "language": "pt"},
+            params={"name": q, "count": limite, "language": _api_lang()},
             timeout=6,
         ).json()
         out = []
@@ -452,8 +468,9 @@ def notificar_chuva_forte(dados: dict) -> bool:
     ):
         return False
 
-    cidade = dados.get("cidade") or "sua região"
-    desc = dados.get("descricao") or "Chuva forte"
+    from config.i18n import t
+    cidade = dados.get("cidade") or t("rain_region")
+    desc = dados.get("descricao") or t("rain_title")
     try:
         subprocess.run(
             [
@@ -461,7 +478,7 @@ def notificar_chuva_forte(dados: dict) -> bool:
                 "-u", "critical",
                 "-a", "Pop Spot",
                 "-i", "weather-showers",
-                "Chuva forte",
+                t("rain_title"),
                 f"{cidade}: {desc}",
             ],
             check=False,

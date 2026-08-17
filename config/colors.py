@@ -18,10 +18,10 @@ COR_TEXTO_SECUNDARIO = "#9999a0"
 COR_TEXTO_TERCIARIO  = "#6c6c75"
 
 # Cor de destaque — títulos, cidade, nome da música, hoje no calendário
-COR_DESTAQUE   = "#496d7f"
+COR_DESTAQUE   = "#9b59b6"
 
 # Ícones dos botões de controle (pode ser igual ao destaque)
-COR_BOTOES_SPOTIFY = "#496d7f"
+COR_BOTOES_SPOTIFY = "#9b59b6"
 
 # Opacidade do fundo do widget (0.0 = invisível, 1.0 = opaco)
 OPACIDADE_FUNDO = 0.92
@@ -53,5 +53,3 @@ COR_TEXTO_APAGADO    = COR_TEXTO_TERCIARIO
 COR_SEPARADOR        = COR_TEXTO_SECUNDARIO
 
 COR_SUPERFICIE_HOVER   = _misturar(COR_SUPERFICIE, "#ffffff", 0.10)
-COR_SUPERFICIE_ACTIVE  = _misturar(COR_SUPERFICIE, "#000000", 0.14)
-COR_SUPERFICIE_APAGADA = _misturar(COR_SUPERFICIE, "#000000", 0.10)

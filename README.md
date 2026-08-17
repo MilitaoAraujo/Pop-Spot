@@ -2,7 +2,7 @@
 
 **A desktop widget for Pop!_OS** / **Um widget de desktop para o Pop!_OS**
 
-Python + GTK3. Clock, weather, Spotify and a live audio spectrum — built for **Pop!_OS / COSMIC**, with Wayland layer-shell (and an X11 fallback).
+Python + GTK3. Clock, weather, Spotify and a live audio spectrum — built for **Pop!_OS / COSMIC**, with Wayland layer-shell (and an X11 fallback). Version **0.1.0**.
 
 ![Pop Spot on the desktop](docs/screenshot.png)
 
@@ -45,13 +45,14 @@ A floating desktop widget: time, calendar, weather (with 3-day forecast), Spotif
 git clone https://github.com/MilitaoAraujo/Pop-Spot.git
 cd Pop-Spot
 bash install.sh
-bash setup_autostart.sh   # start on login
 ```
 
-Run now:
+That installs packages and starts the widget on login (one instance only). To run it by hand: `bash launch_desktop_widget.sh`.
+
+Uninstall (stops autostart; does **not** delete the folder):
 
 ```bash
-bash launch_desktop_widget.sh
+bash uninstall.sh
 ```
 
 Logs: `journalctl --user -u desktop-widget.service -f`
@@ -134,13 +135,14 @@ Widget flutuante na área de trabalho: hora, calendário, clima (previsão de 3 
 git clone https://github.com/MilitaoAraujo/Pop-Spot.git
 cd Pop-Spot
 bash install.sh
-bash setup_autostart.sh   # inicia no login
 ```
 
-Rodar agora:
+Instala os pacotes e liga o widget no login (só uma instância). Para abrir na mão: `bash launch_desktop_widget.sh`.
+
+Desinstalar (remove o autostart; **não** apaga a pasta):
 
 ```bash
-bash launch_desktop_widget.sh
+bash uninstall.sh
 ```
 
 Logs: `journalctl --user -u desktop-widget.service -f`
@@ -185,7 +187,7 @@ Pop-Spot/
 ├── spotify.py / spectrum.py
 ├── wallpaper_theme.py
 ├── launch_desktop_widget.sh
-├── setup_autostart.sh / install.sh
+├── setup_autostart.sh / install.sh / uninstall.sh
 ├── docs/screenshot.png
 ├── docs/screenshot-settings.png
 └── config/

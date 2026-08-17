@@ -25,7 +25,7 @@ After=graphical-session.target
 Type=simple
 # Evita dois processos ao relogar: só um serviço.
 ExecStart=${LAUNCHER}
-Restart=always
+Restart=on-failure
 RestartSec=4
 StartLimitBurst=5
 StartLimitIntervalSec=120

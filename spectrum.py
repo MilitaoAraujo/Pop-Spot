@@ -34,6 +34,7 @@ class AudioSpectrum:
     def stop(self):
         self._running = False
         proc = self._proc
+        self._proc = None
         if proc:
             try:
                 proc.terminate()
@@ -43,6 +44,8 @@ class AudioSpectrum:
                 proc.wait()
             except Exception:
                 pass
+        with self._lock:
+            self._bars = [0.0] * N_BARS
 
     def get_bars(self) -> list:
         with self._lock:

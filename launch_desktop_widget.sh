@@ -93,7 +93,13 @@ else
   fi
   export GDK_BACKEND=x11
   if [[ -n "${WAYLAND_DISPLAY:-}" ]] && ! _has_layer_shell; then
-    echo "desktop-widget: aviso — GtkLayerShell ausente; usando X11 sem borda" >&2
+    echo "desktop-widget: aviso — GtkLayerShell ausente; usando X11 (pode aparecer na taskbar)" >&2
+    if command -v notify-send >/dev/null 2>&1; then
+      notify-send -a "Pop Spot" -u normal \
+        "Pop Spot" \
+        "GtkLayerShell ausente — usando X11 (pode aparecer na taskbar)." \
+        >/dev/null 2>&1 || true
+    fi
   fi
 fi
 

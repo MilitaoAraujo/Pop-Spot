@@ -1,6 +1,8 @@
 #!/bin/bash
-# Install dependencies for the Desktop Widget
+# Instala dependências e liga o widget no login (Pop!_OS / Ubuntu / Debian).
 set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "==> Updating package lists..."
 sudo apt-get update -qq
@@ -17,16 +19,17 @@ sudo apt-get install -y \
     python3-requests \
     python3-numpy \
     pulseaudio-utils \
-    fonts-inter 2>/dev/null || true
+    geoclue-2.0
 
-# python3-requests via pip if apt version is too old
+sudo apt-get install -y fonts-inter || true
+
 python3 -c "import requests" 2>/dev/null || pip3 install --user requests
 
 echo ""
-echo "==> All dependencies installed!"
+echo "==> Enabling autostart (systemd user)..."
+bash "$SCRIPT_DIR/setup_autostart.sh"
+
 echo ""
-echo "Run the widget with:"
-echo "    python3 $(dirname "$0")/widget.py &"
-echo ""
-echo "Or run the autostart setup:"
-echo "    bash $(dirname "$0")/setup_autostart.sh"
+echo "Pop Spot is installed and will start on login."
+echo "Uninstall:  bash $SCRIPT_DIR/uninstall.sh"
+echo "Logs:       journalctl --user -u desktop-widget.service -f"

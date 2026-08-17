@@ -76,13 +76,13 @@ QLabel#progPct {{
     font-size: {px(9)}px; color: {COR_TEXTO_SECUNDARIO};
 }}
 QLabel#calHdr {{
-    font-size: {px(9)}px; font-weight: 700; color: {COR_TEXTO_APAGADO};
+    font-size: {px(11)}px; font-weight: 700; color: {COR_TEXTO_APAGADO};
 }}
 QLabel#calDia {{
-    font-size: {px(10)}px; color: {COR_TEXTO_SECUNDARIO};
+    font-size: {px(13)}px; color: {COR_TEXTO_SECUNDARIO};
 }}
 QLabel#calHoje {{
-    font-size: {px(10)}px; font-weight: 700; color: {COR_DESTAQUE};
+    font-size: {px(13)}px; font-weight: 700; color: {COR_DESTAQUE};
 }}
 QLabel#tituloConfig {{
     font-size: {px(13)}px; font-weight: 700; color: {COR_DESTAQUE};
@@ -105,6 +105,9 @@ QLineEdit#entryConfig, QLineEdit#entryHex {{
     border: 1px solid {COR_SEPARADOR}; border-radius: {px(8)}px;
     padding: {px(4)}px {px(8)}px; min-height: {px(26)}px;
     selection-background-color: {COR_DESTAQUE};
+}}
+QLineEdit#entryConfig[hostFocus="true"], QLineEdit#entryHex[hostFocus="true"] {{
+    border: 2px solid {COR_DESTAQUE};
 }}
 QLineEdit#entryHex {{
     font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: {px(11)}px;

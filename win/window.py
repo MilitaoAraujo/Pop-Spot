@@ -134,11 +134,12 @@ class WidgetWindows(QWidget):
         self.setStyleSheet(gerar_qss())
         self._construir_ui()
         self._aplicar_visibilidade()
-        self.clima_pronto.connect(self._aplicar_clima)
-        self.spotify_pronto.connect(self._aplicar_spotify)
-        self.capa_pronta.connect(self._aplicar_capa)
-        self.tema_wallpaper.connect(self._aplicar_tema_wallpaper_auto)
+        self.clima_pronto.connect(self._aplicar_clima, Qt.ConnectionType.QueuedConnection)
+        self.spotify_pronto.connect(self._aplicar_spotify, Qt.ConnectionType.QueuedConnection)
+        self.capa_pronta.connect(self._aplicar_capa, Qt.ConnectionType.QueuedConnection)
+        self.tema_wallpaper.connect(self._aplicar_tema_wallpaper_auto, Qt.ConnectionType.QueuedConnection)
         self._tick_relogio()
+        self._ajustar_pagina()
         self._iniciar_timers()
         if janela_nativa:
             QTimer.singleShot(0, self._posicionar)
@@ -220,6 +221,8 @@ class WidgetWindows(QWidget):
         col.setSpacing(0)
 
         relogio_linha = QHBoxLayout()
+        relogio_linha.setSpacing(px(12))
+        relogio_linha.setAlignment(Qt.AlignmentFlag.AlignTop)
         caixa_clock = QVBoxLayout()
         caixa_clock.setSpacing(0)
         self.lbl_hora = self._rotulo("hora", "00")
@@ -352,17 +355,21 @@ class WidgetWindows(QWidget):
 
     def _painel_dir(self) -> QWidget:
         painel = QWidget()
-        painel.setFixedWidth(px(95))
+        painel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        painel.setMinimumWidth(px(148))
         v = QVBoxLayout(painel)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(px(6))
-        v.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        v.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
 
         linha = QHBoxLayout()
-        linha.setAlignment(Qt.AlignmentFlag.AlignRight)
+        linha.setSpacing(px(6))
+        linha.setContentsMargins(0, 0, 0, 0)
         self.lbl_prog_dia = self._rotulo(
             "progLabel", t("day_progress"), Qt.AlignmentFlag.AlignRight)
         self.lbl_prog_pct = self._rotulo("progPct", "0%", Qt.AlignmentFlag.AlignRight)
+        for w in (self.lbl_prog_dia, self.lbl_prog_pct):
+            w.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
         linha.addWidget(self.lbl_prog_dia)
         linha.addWidget(self.lbl_prog_pct)
         v.addLayout(linha)
@@ -376,18 +383,25 @@ class WidgetWindows(QWidget):
 
         self._cal_grid_host = QWidget()
         self._cal_grid = QGridLayout(self._cal_grid_host)
-        self._cal_grid.setContentsMargins(0, 0, 0, 0)
-        self._cal_grid.setHorizontalSpacing(px(4))
-        self._cal_grid.setVerticalSpacing(px(3))
-        self._cal_grid.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self._cal_grid.setContentsMargins(0, px(4), 0, 0)
+        self._cal_grid.setHorizontalSpacing(px(6))
+        self._cal_grid.setVerticalSpacing(px(5))
+        for col in range(7):
+            self._cal_grid.setColumnStretch(col, 1)
+            self._cal_grid.setColumnMinimumWidth(col, px(20))
         v.addWidget(self._cal_grid_host)
         self._painel_dir_w = painel
+        self._atualizar_calendario()
         return painel
 
     def _aplicar_visibilidade(self):
         import config as cfg
         cal = bool(getattr(cfg, "MOSTRAR_CALENDARIO", True))
         self._cal_grid_host.setVisible(cal)
+        self.lbl_prog_dia.setVisible(cal)
+        self.lbl_prog_pct.setVisible(cal)
+        self.barra_dia.setVisible(cal)
+        self._painel_dir_w.setVisible(cal)
         self._caixa_spotify.setVisible(bool(getattr(cfg, "MOSTRAR_SPOTIFY", True)))
         self._caixa_previsao.setVisible(bool(getattr(cfg, "MOSTRAR_PREVISAO", True)))
         espectro_on = bool(getattr(cfg, "MOSTRAR_ESPECTRO", True))
@@ -399,8 +413,8 @@ class WidgetWindows(QWidget):
             self.espectro_area.set_levels([0.0] * N_BARS)
 
     def _largura_janela(self) -> int:
-        # Qt (QSS + scrollbar) precisa de mais largura que o GTK; não estica na vertical.
-        return px(LARGURA) + px(96)
+        # Qt precisa de mais largura que o GTK (calendário + “Progresso do dia”).
+        return px(LARGURA) + px(120)
 
     def _ajustar_pagina(self):
         atual = self._stack.currentIndex()
@@ -646,6 +660,7 @@ class WidgetWindows(QWidget):
         hoje = agora.day
         for col in range(7):
             lbl = self._rotulo("calHdr", t(f"cal_{col}"), Qt.AlignmentFlag.AlignHCenter)
+            lbl.setMinimumWidth(px(20))
             self._cal_grid.addWidget(lbl, 0, col)
         for row, semana in enumerate(calendar.monthcalendar(agora.year, agora.month)):
             for col, dia in enumerate(semana):
@@ -654,7 +669,12 @@ class WidgetWindows(QWidget):
                 else:
                     nome = "calHoje" if dia == hoje else "calDia"
                     lbl = self._rotulo(nome, str(dia), Qt.AlignmentFlag.AlignHCenter)
+                lbl.setMinimumWidth(px(20))
+                lbl.setMinimumHeight(px(16))
                 self._cal_grid.addWidget(lbl, row + 1, col)
+        self._cal_grid_host.updateGeometry()
+        if getattr(self, "_painel_dir_w", None) is not None:
+            self._painel_dir_w.updateGeometry()
 
     def _buscar_clima(self):
         threading.Thread(target=self._bg_clima, daemon=True).start()
@@ -947,12 +967,13 @@ class WidgetWindows(QWidget):
             event.accept()
             return
         if event.button() == Qt.MouseButton.LeftButton:
-            filho = self.childAt(event.position().toPoint())
-            if isinstance(filho, QPushButton) or (
-                filho is not None and isinstance(filho.parent(), QPushButton)
-            ):
-                super().mousePressEvent(event)
-                return
+            from PySide6.QtWidgets import QAbstractButton, QAbstractSlider, QLineEdit, QListWidget
+            w = self.childAt(event.position().toPoint())
+            while w is not None and w is not self:
+                if isinstance(w, (QAbstractButton, QAbstractSlider, QLineEdit, QListWidget)):
+                    super().mousePressEvent(event)
+                    return
+                w = w.parentWidget()
             self._arrastando = True
             self._drag_off = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             event.accept()

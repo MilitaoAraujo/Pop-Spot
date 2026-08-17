@@ -69,6 +69,19 @@ _DESC_PT = {
 
 _loc_cache: dict | None = None
 
+# UF → estado (consulta tipo "Campina Grande PB")
+_UF_BR = {
+    "AC": "Acre", "AL": "Alagoas", "AP": "Amapá", "AM": "Amazonas",
+    "BA": "Bahia", "CE": "Ceará", "DF": "Distrito Federal",
+    "ES": "Espírito Santo", "GO": "Goiás", "MA": "Maranhão",
+    "MT": "Mato Grosso", "MS": "Mato Grosso do Sul", "MG": "Minas Gerais",
+    "PA": "Pará", "PB": "Paraíba", "PR": "Paraná", "PE": "Pernambuco",
+    "PI": "Piauí", "RJ": "Rio de Janeiro", "RN": "Rio Grande do Norte",
+    "RS": "Rio Grande do Sul", "RO": "Rondônia", "RR": "Roraima",
+    "SC": "Santa Catarina", "SP": "São Paulo", "SE": "Sergipe",
+    "TO": "Tocantins",
+}
+
 
 def _lang() -> str:
     try:
@@ -236,19 +249,79 @@ def _detectar_localizacao():
     return _loc_cache
 
 
+def _partir_consulta(nome: str) -> tuple[str, str | None]:
+    """Separa 'Campina Grande PB' / 'Campina Grande, Paraíba' em (cidade, estado)."""
+    t = (nome or "").strip()
+    if not t:
+        return "", None
+    if "," in t:
+        a, b = t.split(",", 1)
+        cidade, extra = a.strip(), b.strip()
+    else:
+        partes = t.rsplit(None, 1)
+        if len(partes) != 2:
+            return t, None
+        cidade, extra = partes[0].strip(), partes[1].strip()
+    if not extra:
+        return t, None
+    uf = extra.upper()
+    if uf in _UF_BR:
+        return cidade or t, _UF_BR[uf]
+    for estado in _UF_BR.values():
+        if extra.casefold() == estado.casefold():
+            return cidade or t, estado
+    return t, None
+
+
+def _pontuar_geo(x: dict, nome: str, estado: str | None) -> tuple:
+    n = (x.get("name") or "")
+    admin = (x.get("admin1") or "")
+    pop = int(x.get("population") or 0)
+    fc = str(x.get("feature_code") or "")
+    score = 0
+    if n.casefold() == nome.casefold():
+        score += 200
+    elif nome.casefold() in n.casefold() or n.casefold() in nome.casefold():
+        score += 40
+    if estado:
+        if admin.casefold() == estado.casefold():
+            score += 180
+        else:
+            score -= 80
+    if fc.startswith("PPLA"):
+        score += 50
+    elif fc == "PPL":
+        score += 30
+    elif fc == "AIRP":
+        score -= 250
+    score += min(80, pop // 8000)
+    return (score, pop)
+
+
+def _escolher_geo(results: list, nome: str, estado: str | None):
+    if not results:
+        return None
+    return max(results, key=lambda x: _pontuar_geo(x, nome, estado))
+
+
 def _resolver_alvo():
     """Retorna (alvo_wttr, cidade_exibir, lat, lon)."""
     from config import CIDADE
     cfg = (CIDADE or "").strip()
     if cfg:
-        # coords manuais "lat,lon"
+        # coords manuais "lat,lon" (sem espaço de nome de cidade)
         if "," in cfg:
             try:
                 a, b = cfg.split(",", 1)
-                return cfg, None, float(a), float(b)
+                if a.strip().lstrip("-").replace(".", "", 1).isdigit():
+                    return cfg, None, float(a), float(b)
             except ValueError:
                 pass
-        return cfg, None, None, None
+        geo = _geocode_cidade(cfg)
+        if geo:
+            lat, lon, nome = geo
+            return f"{lat},{lon}", nome, lat, lon
+        return cfg, cfg, None, None
 
     loc = _detectar_localizacao()
     if loc:
@@ -304,17 +377,18 @@ def _buscar_wttr(alvo: str, cidade_exibir):
 
 
 def _geocode_cidade(nome: str):
+    cidade, estado = _partir_consulta(nome)
+    q = cidade or nome
     try:
         r = requests.get(
             "https://geocoding-api.open-meteo.com/v1/search",
-            params={"name": nome, "count": 1, "language": _api_lang()},
+            params={"name": q, "count": 10, "language": _api_lang()},
             timeout=8,
         ).json()
-        results = r.get("results") or []
-        if not results:
+        x = _escolher_geo(r.get("results") or [], q, estado)
+        if not x:
             return None
-        x = results[0]
-        return x["latitude"], x["longitude"], x.get("name") or nome
+        return x["latitude"], x["longitude"], x.get("name") or q
     except Exception as e:
         log.debug("geocode: %s", e)
         return None
@@ -414,25 +488,39 @@ def buscar() -> dict | None:
 
 
 def sugerir_cidades(texto: str, limite: int = 8) -> list[dict]:
-    """Autocomplete: [{"rotulo": "Campina Grande, PB, Brasil", "cidade": "Campina Grande"}, ...]"""
+    """Autocomplete: [{"rotulo": "Campina Grande, Paraíba, Brasil", "cidade": "Campina Grande"}, ...]"""
     q = (texto or "").strip()
     if len(q) < 2:
         return []
+    cidade, estado = _partir_consulta(q)
+    busca = cidade or q
     try:
         r = requests.get(
             "https://geocoding-api.open-meteo.com/v1/search",
-            params={"name": q, "count": limite, "language": _api_lang()},
+            params={"name": busca, "count": max(limite, 10), "language": _api_lang()},
             timeout=6,
         ).json()
+        results = list(r.get("results") or [])
+        results.sort(key=lambda x: _pontuar_geo(x, busca, estado), reverse=True)
         out = []
-        for x in r.get("results") or []:
-            nome = x.get("name") or q
+        vistos = set()
+        for x in results:
+            if str(x.get("feature_code") or "") == "AIRP":
+                continue
+            nome = x.get("name") or busca
+            admin = x.get("admin1") or ""
+            chave = (nome.casefold(), admin.casefold())
+            if chave in vistos:
+                continue
+            vistos.add(chave)
             partes = [nome]
-            if x.get("admin1"):
-                partes.append(x["admin1"])
+            if admin:
+                partes.append(admin)
             if x.get("country"):
                 partes.append(x["country"])
             out.append({"rotulo": ", ".join(partes), "cidade": nome})
+            if len(out) >= limite:
+                break
         return out
     except Exception as e:
         log.debug("sugerir_cidades: %s", e)

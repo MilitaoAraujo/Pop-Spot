@@ -89,6 +89,8 @@ def _gravar_constantes(caminho: Path, valores: dict) -> None:
 class PaginaConfig(QWidget):
     salvo = Signal()
     pedir_cor = Signal(str, str)  # nome, hex atual (Linux host)
+    wall_pronto = Signal(object, object)
+    cidades_prontas = Signal(str, object)
 
     def __init__(self, janela_nativa: bool = True, parent=None):
         super().__init__(parent)
@@ -99,6 +101,8 @@ class PaginaConfig(QWidget):
         self._timer_cidade = QTimer(self)
         self._timer_cidade.setSingleShot(True)
         self._timer_cidade.timeout.connect(self._buscar_cidades)
+        self.wall_pronto.connect(self._wall_ok, Qt.ConnectionType.QueuedConnection)
+        self.cidades_prontas.connect(self._mostrar_cidades, Qt.ConnectionType.QueuedConnection)
         self._montar()
         self.carregar_valores()
 
@@ -159,6 +163,8 @@ class PaginaConfig(QWidget):
         self.entry_cidade = QLineEdit()
         self.entry_cidade.setObjectName("entryConfig")
         self.entry_cidade.setPlaceholderText(t("city_placeholder"))
+        self.entry_cidade.setMinimumHeight(px(32))
+        self.entry_cidade.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.entry_cidade.textChanged.connect(self._on_cidade_texto)
         self.btn_cidade_auto = QPushButton(t("city_auto"))
         self.btn_cidade_auto.setObjectName("btnConfigSec")
@@ -492,7 +498,7 @@ class PaginaConfig(QWidget):
             sug = mod_clima.sugerir_cidades(texto)
         except Exception:
             sug = []
-        QTimer.singleShot(0, lambda: self._mostrar_cidades(texto, sug))
+        self.cidades_prontas.emit(texto, sug)
 
     def _mostrar_cidades(self, texto: str, sug: list) -> None:
         if self.entry_cidade.text().strip() != texto:
@@ -561,7 +567,7 @@ class PaginaConfig(QWidget):
             tema, info = mod_wall.adaptar_ao_wallpaper()
         except Exception as e:
             tema, info = None, str(e)
-        QTimer.singleShot(0, lambda: self._wall_ok(tema, info))
+        self.wall_pronto.emit(tema, info)
 
     def _wall_ok(self, tema, info) -> None:
         if not tema:

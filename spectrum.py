@@ -1,6 +1,6 @@
 # Visualizador de espectro em tempo real
 # Linux: PulseAudio/PipeWire (parec + FFT)
-# Windows: WASAPI loopback (sounddevice + FFT)
+# Windows: WASAPI loopback (soundcard + FFT)
 
 from __future__ import annotations
 
@@ -104,81 +104,38 @@ class AudioSpectrum:
         self._running = False
 
     def _loop_wasapi(self):
+        # `sounddevice`/PortAudio não expõe loopback de saída no Windows
+        # (WasapiSettings não tem parâmetro `loopback`) — usa `soundcard`,
+        # que fala direto com o WASAPI e sabe gravar o que está tocando.
         try:
-            import sounddevice as sd
+            import soundcard as sc
         except ImportError:
-            log.warning("sounddevice ausente — espectro Windows desativado")
+            log.warning("soundcard ausente — espectro Windows desativado")
             self._running = False
             return
         try:
-            extra = sd.WasapiSettings(loopback=True)
+            saida = sc.default_speaker()
+            mic = sc.get_microphone(saida.id, include_loopback=True)
         except Exception as e:
-            log.warning("WASAPI: %s", e)
-            self._running = False
-            return
-        out = None
-        try:
-            dev = sd.default.device
-            if isinstance(dev, (list, tuple)) and len(dev) > 1:
-                out = dev[1]
-            elif isinstance(dev, int):
-                out = dev
-        except Exception:
-            out = None
-        if out is None:
-            log.warning("sem dispositivo de saída — espectro desativado")
-            self._running = False
-            return
-        stream = None
-        canais = 1
-        info = sd.query_devices(out)
-        try:
-            rate = int(info["default_samplerate"] or RATE)
-        except Exception:
-            rate = RATE
-        for ch in (1, 2):
-            try:
-                stream = sd.RawInputStream(
-                    samplerate=rate,
-                    channels=ch,
-                    dtype="int16",
-                    blocksize=CHUNK,
-                    device=out,
-                    extra_settings=extra,
-                )
-                stream.start()
-                canais = ch
-                break
-            except Exception as e:
-                log.debug("WASAPI %s ch: %s", ch, e)
-                stream = None
-        if stream is None:
-            log.warning("WASAPI loopback falhou — espectro desativado")
+            log.warning("WASAPI loopback: %s", e)
             self._running = False
             return
         try:
-            while self._running:
-                raw, _ov = stream.read(CHUNK)
-                data = bytes(raw)
-                if canais == 2 and len(data) >= 4:
-                    mono = bytearray(len(data) // 2)
-                    for i in range(0, len(data) - 3, 4):
-                        l = int.from_bytes(data[i:i + 2], "little", signed=True)
-                        r = int.from_bytes(data[i + 2:i + 4], "little", signed=True)
-                        m = max(-32768, min(32767, (l + r) // 2))
-                        mono[i // 2:i // 2 + 2] = int(m).to_bytes(2, "little", signed=True)
-                    data = bytes(mono)
-                if data:
-                    self._processar(data)
+            with mic.recorder(samplerate=RATE, channels=1, blocksize=CHUNK) as rec:
+                while self._running:
+                    amostras = rec.record(numframes=CHUNK)
+                    if amostras.size:
+                        self._processar_amostras(amostras[:, 0])
         except Exception as e:
             log.debug("WASAPI read: %s", e)
         finally:
-            try:
-                stream.stop()
-                stream.close()
-            except Exception:
-                pass
             self._running = False
+
+    def _processar_amostras(self, amostras):
+        """Amostras float32 em [-1, 1] (via `soundcard`), já normalizadas."""
+        if self._np is None:
+            return
+        self._aplicar_barras(self._fft_bars(amostras, self._np))
 
     def _processar(self, raw: bytes):
         if self._np is not None:
@@ -195,18 +152,22 @@ class AudioSpectrum:
 
     def _process_numpy(self, raw: bytes, np):
         samples = np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32768.0
+        self._aplicar_barras(self._fft_bars(samples, np))
+
+    @staticmethod
+    def _fft_bars(samples, np) -> list:
         if len(samples) < 8:
-            return
+            return [0.0] * N_BARS
         fft = np.abs(np.fft.rfft(samples * np.hanning(len(samples))))
         n = len(fft)
-        new_bars = []
+        bars = []
         for i in range(N_BARS):
             lo = int(n * (i / N_BARS) ** 2.0)
             hi = int(n * ((i + 1) / N_BARS) ** 2.0)
             lo, hi = max(lo, 0), min(hi, n - 1)
             val = float(np.mean(fft[lo:hi + 1])) if hi > lo else float(fft[lo])
-            new_bars.append(val)
-        self._aplicar_barras(new_bars)
+            bars.append(val)
+        return bars
 
     def _process_puro(self, raw: bytes):
         samples = array.array("h")

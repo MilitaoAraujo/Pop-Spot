@@ -44,6 +44,15 @@ log = logging.getLogger("popspot.win.settings")
 _RAIZ = Path(__file__).resolve().parent.parent
 _ESCALA_MIN, _ESCALA_MAX = 0.80, 1.30
 
+
+class _SliderSemRoda(QSlider):
+    """QSlider que ignora a roda do mouse — dentro do QScrollArea de
+    configurações, o valor mudava sem querer ao rolar a tela. Só arrasta
+    o cursor com o clique do mouse."""
+
+    def wheelEvent(self, event):
+        event.ignore()
+
 _CORES = (
     ("COR_BASE", "cor_base", COR_BASE),
     ("COR_SUPERFICIE", "cor_superficie", COR_SUPERFICIE),
@@ -268,7 +277,7 @@ class PaginaConfig(QWidget):
 
         self.lbl_tamanho = self._lbl("labelConfig", t("widget_size"))
         v.addWidget(self.lbl_tamanho)
-        self.scale_tamanho = QSlider(Qt.Orientation.Horizontal)
+        self.scale_tamanho = _SliderSemRoda(Qt.Orientation.Horizontal)
         self.scale_tamanho.setObjectName("scaleConfig")
         self.scale_tamanho.setMinimumHeight(px(32))
         self.scale_tamanho.setRange(int(_ESCALA_MIN * 100), int(_ESCALA_MAX * 100))
@@ -284,7 +293,7 @@ class PaginaConfig(QWidget):
 
         self.lbl_opacidade = self._lbl("labelConfig", t("opacity"))
         v.addWidget(self.lbl_opacidade)
-        self.scale_opacidade = QSlider(Qt.Orientation.Horizontal)
+        self.scale_opacidade = _SliderSemRoda(Qt.Orientation.Horizontal)
         self.scale_opacidade.setObjectName("scaleConfig")
         self.scale_opacidade.setMinimumHeight(px(32))
         self.scale_opacidade.setRange(40, 100)

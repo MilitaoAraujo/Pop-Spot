@@ -21,7 +21,7 @@ A floating desktop widget: time, calendar, weather (3-day forecast), Spotify con
 | UI | PySide6 | PySide6 |
 | Desktop chrome | GTK layer-shell host | Native tool window (no taskbar) |
 | Spotify | MPRIS (D-Bus) | SMTC + session volume (`pycaw`) |
-| Spectrum | Pulse/`parec` | WASAPI loopback (`sounddevice`) |
+| Spectrum | Pulse/`parec` | WASAPI loopback (`soundcard`) |
 | Wallpaper colors | COSMIC / GNOME | Desktop wallpaper API |
 | Rain alert | `notify-send` | Balloon / toast |
 | Autostart | systemd user (`install.sh`) | Startup folder (`install_windows.ps1`) |
@@ -83,7 +83,7 @@ In settings: **Open when Windows starts**. Spectrum needs audio on the default o
 |---|---|
 | `PySide6` | Widget UI |
 | `requests` / `numpy` | Weather + FFT |
-| `sounddevice` | WASAPI loopback (spectrum) |
+| `soundcard` | WASAPI loopback (spectrum) |
 | `pycaw` / `comtypes` | Spotify volume |
 | `winrt-runtime` + `winrt-Windows.Media.Control` (+ Storage / Streams) | SMTC (track, cover, play/pause) |
 
@@ -139,7 +139,7 @@ Widget flutuante na área de trabalho: hora, calendário, clima (previsão de 3 
 | Interface | PySide6 | PySide6 |
 | Mesa | Host GTK + layer-shell | Janela tool nativa (sem taskbar) |
 | Spotify | MPRIS (D-Bus) | SMTC + volume da sessão (`pycaw`) |
-| Espectro | Pulse/`parec` | WASAPI loopback (`sounddevice`) |
+| Espectro | Pulse/`parec` | WASAPI loopback (`soundcard`) |
 | Cores do wallpaper | COSMIC / GNOME | API do papel de parede |
 | Aviso de chuva | `notify-send` | Balloon / toast |
 | Autostart | systemd (`install.sh`) | Pasta Inicializar (`install_windows.ps1`) |
@@ -201,7 +201,7 @@ Nas configurações: **Abrir ao iniciar o Windows**. O espectro precisa de som n
 |---|---|
 | `PySide6` | Interface |
 | `requests` / `numpy` | Clima + FFT |
-| `sounddevice` | WASAPI (espectro) |
+| `soundcard` | WASAPI (espectro) |
 | `pycaw` / `comtypes` | Volume do Spotify |
 | `winrt-runtime` + `winrt-Windows.Media.Control` (+ Storage / Streams) | SMTC (faixa, capa, play/pause) |
 
@@ -241,7 +241,7 @@ Pop-Spot/
 ├── install.sh / uninstall.sh / setup_autostart.sh / launch_desktop_widget.sh
 ├── install_windows.ps1 / uninstall_windows.ps1 / launch_windows.ps1
 ├── requirements.txt            # Linux (PySide6, requests, numpy)
-├── requirements-windows.txt    # Windows (+ sounddevice, pycaw, winrt)
+├── requirements-windows.txt    # Windows (+ soundcard, pycaw, winrt)
 ├── win/                        # UI Qt (oficial nos dois)
 ├── weather.py / spotify.py / spectrum.py / wallpaper_theme.py
 ├── docs/screenshot.png

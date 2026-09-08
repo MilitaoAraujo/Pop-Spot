@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import Qt, QPointF
+from PySide6.QtCore import Qt, QPointF, QRectF
 from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QPixmap
 
 SOL = "sol"
@@ -121,6 +121,52 @@ def pix_clima(tipo: str, tamanho: int, cor: str) -> QPixmap:
     else:
         _sol(p, cx + s * 0.30, cy - s * 0.30, s * 0.35)
         _nuvem(p, cx - s * 0.05, cy + s * 0.10, s * 0.85)
+    p.end()
+    return QPixmap.fromImage(img)
+
+
+def _triangulo(p: QPainter, cx, cy, s, direita=True):
+    path = QPainterPath()
+    if direita:
+        path.moveTo(cx - s * 0.55, cy - s * 0.62)
+        path.lineTo(cx - s * 0.55, cy + s * 0.62)
+        path.lineTo(cx + s * 0.62, cy)
+    else:
+        path.moveTo(cx + s * 0.55, cy - s * 0.62)
+        path.lineTo(cx + s * 0.55, cy + s * 0.62)
+        path.lineTo(cx - s * 0.62, cy)
+    path.closeSubpath()
+    p.drawPath(path)
+
+
+def pix_media(tipo: str, tamanho: int, cor: str) -> QPixmap:
+    """Ícones de controle de mídia (play/pause/prev/next), mesmo estilo/cor em todos —
+    evita a mistura de glifo monocromático (▶) com emoji colorido (⏮⏭) no Windows."""
+    size = max(16, int(tamanho))
+    img = QImage(size, size, QImage.Format.Format_ARGB32_Premultiplied)
+    img.fill(0)
+    p = QPainter(img)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor(cor))
+    cx = cy = size / 2
+    s = size * 0.30
+    barw = s * 0.30
+    raio = barw * 0.3
+
+    if tipo == "play":
+        _triangulo(p, cx + s * 0.06, cy, s)
+    elif tipo == "pause":
+        gap = s * 0.34
+        for sinal in (-1, 1):
+            x = cx + sinal * (gap / 2 + barw / 2) - barw / 2
+            p.drawRoundedRect(QRectF(x, cy - s * 0.62, barw, s * 1.24), raio, raio)
+    elif tipo == "prev":
+        p.drawRoundedRect(QRectF(cx - s * 0.62, cy - s * 0.62, barw, s * 1.24), raio, raio)
+        _triangulo(p, cx + s * 0.20, cy, s * 0.88, direita=False)
+    elif tipo == "next":
+        _triangulo(p, cx - s * 0.20, cy, s * 0.88, direita=True)
+        p.drawRoundedRect(QRectF(cx + s * 0.62 - barw, cy - s * 0.62, barw, s * 1.24), raio, raio)
     p.end()
     return QPixmap.fromImage(img)
 

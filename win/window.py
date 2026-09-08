@@ -8,7 +8,7 @@ import logging
 import threading
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QPoint, QTimer, Signal
+from PySide6.QtCore import Qt, QPoint, QSize, QTimer, Signal
 from PySide6.QtGui import QColor, QPainter, QAction, QPixmap, QIcon
 from PySide6.QtWidgets import (
     QApplication,
@@ -30,6 +30,7 @@ from config import (
     LARGURA, LADO, MARGEM_DIREITA, POS_X, POS_Y, TAMANHO_CAPA, VERSAO,
     COR_BASE, OPACIDADE_FUNDO, RAIO_BORDA,
     MOSTRAR_CALENDARIO, MOSTRAR_SPOTIFY, MOSTRAR_PREVISAO, MOSTRAR_ESPECTRO,
+    COR_BOTOES_SPOTIFY, COR_TEXTO_APAGADO,
 )
 from config.i18n import t
 from spectrum import AudioSpectrum, N_BARS
@@ -37,7 +38,7 @@ from win.native import aplicar_como_widget
 from win.scale import px
 from win.style import gerar_qss
 from win.settings import PaginaConfig
-from win.icons import pix_clima, pix_nota
+from win.icons import pix_clima, pix_media, pix_nota
 
 log = logging.getLogger("popspot.win")
 
@@ -283,19 +284,21 @@ class WidgetWindows(QWidget):
         ctrl = QHBoxLayout()
         ctrl.setSpacing(px(4))
         ctrl.setContentsMargins(0, 0, 0, 0)
-        self.btn_spotify_prev = QPushButton("⏮")
-        self.btn_spotify_play = QPushButton("▶")
-        self.btn_spotify_next = QPushButton("⏭")
-        for b, tip in (
-            (self.btn_spotify_prev, t("prev_track")),
-            (self.btn_spotify_play, t("play")),
-            (self.btn_spotify_next, t("next_track")),
+        self.btn_spotify_prev = QPushButton()
+        self.btn_spotify_play = QPushButton()
+        self.btn_spotify_next = QPushButton()
+        for b, tip, tipo in (
+            (self.btn_spotify_prev, t("prev_track"), "prev"),
+            (self.btn_spotify_play, t("play"), "play"),
+            (self.btn_spotify_next, t("next_track"), "next"),
         ):
             b.setObjectName("btnSpotify")
             b.setToolTip(tip)
             b.setEnabled(False)
             b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             b.setMaximumWidth(px(52))
+            b.setIconSize(QSize(px(15), px(15)))
+            self._definir_icone_media(b, tipo)
             ctrl.addWidget(b, 0)
         self.btn_spotify_prev.clicked.connect(lambda: self._spotify_cmd("Previous"))
         self.btn_spotify_play.clicked.connect(self._spotify_play_pause)
@@ -750,6 +753,13 @@ class WidgetWindows(QWidget):
             dados = None
         self.spotify_pronto.emit(dados)
 
+    def _definir_icone_media(self, botao: QPushButton, tipo: str):
+        tamanho = px(15)
+        icone = QIcon()
+        icone.addPixmap(pix_media(tipo, tamanho, COR_BOTOES_SPOTIFY), QIcon.Mode.Normal)
+        icone.addPixmap(pix_media(tipo, tamanho, COR_TEXTO_APAGADO), QIcon.Mode.Disabled)
+        botao.setIcon(icone)
+
     def _aplicar_spotify(self, dados):
         self._spotify_ocupado = False
         ativo = bool(dados and dados.get("titulo"))
@@ -771,7 +781,7 @@ class WidgetWindows(QWidget):
         self.lbl_album.show()
         tocando = str(dados.get("status") or "") == "Playing"
         self.lbl_cabecalho_spotify.setText(t("playing") if tocando else t("paused"))
-        self.btn_spotify_play.setText("⏸" if tocando else "▶")
+        self._definir_icone_media(self.btn_spotify_play, "pause" if tocando else "play")
         self.btn_spotify_play.setToolTip(t("pause") if tocando else t("play"))
         titulo = str(dados.get("titulo") or "")
         if not tocando:
@@ -794,8 +804,12 @@ class WidgetWindows(QWidget):
             self._url_capa = capa
             if capa_bytes:
                 self.capa_pronta.emit(capa_bytes)
-            else:
+            elif capa.startswith(("http://", "https://", "file://")):
                 threading.Thread(target=self._bg_capa, args=(capa,), daemon=True).start()
+            else:
+                # Windows (SMTC): "capa" é só uma chave de mudança de faixa,
+                # não uma URL — sem capa_bytes não há thumbnail pra mostrar.
+                self.btn_capa.setIcon(QIcon())
 
     def _bg_capa(self, url: str):
         try:

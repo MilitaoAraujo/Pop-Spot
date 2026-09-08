@@ -6,6 +6,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 _RAIZ = Path(__file__).resolve().parent.parent
@@ -13,7 +14,33 @@ if str(_RAIZ) not in sys.path:
     sys.path.insert(0, str(_RAIZ))
 
 os.chdir(_RAIZ)
-logging.basicConfig(level=logging.WARNING)
+
+
+def _configurar_logging() -> None:
+    """Sempre roda via pythonw (sem console) — sem isso, avisos e erros
+    (ex.: falha silenciosa de uma dependência) somem sem deixar rastro.
+    Grava em config/popspot.log, com rotação, pra dar pra investigar depois."""
+    raiz = logging.getLogger()
+    raiz.setLevel(logging.INFO)
+
+    console = logging.StreamHandler()
+    console.setLevel(logging.WARNING)
+    console.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+    raiz.addHandler(console)
+
+    try:
+        arq = _RAIZ / "config" / "popspot.log"
+        arq.parent.mkdir(parents=True, exist_ok=True)
+        fh = RotatingFileHandler(arq, maxBytes=1_000_000, backupCount=2, encoding="utf-8")
+        fh.setLevel(logging.INFO)
+        fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        raiz.addHandler(fh)
+    except Exception:
+        log = logging.getLogger("popspot.win")
+        log.warning("não deu pra abrir o arquivo de log", exc_info=True)
+
+
+_configurar_logging()
 
 
 def _uma_instancia():

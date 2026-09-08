@@ -154,25 +154,35 @@ QProgressBar#barDia {{
 QProgressBar#barDia::chunk {{
     background: {COR_DESTAQUE}; border-radius: 2px;
 }}
-QPushButton#btnSpotify, QPushButton#btnEngrenagem {{
-    background: {COR_SUPERFICIE};
+QPushButton#btnSpotify {{
+    background: transparent;
     color: {COR_BOTOES_SPOTIFY};
-    border: 1px solid rgba(255,255,255,0.55);
-    border-radius: {px(6)}px;
-    padding: {px(2)}px {px(6)}px;
-    min-height: {px(28)}px;
+    border: none;
+    border-radius: {px(18)}px;
+    padding: 0;
+    min-height: {px(36)}px;
     min-width: {px(36)}px;
-    font-size: {px(14)}px;
+    max-height: {px(36)}px;
+    max-width: {px(36)}px;
+    font-size: {px(15)}px;
 }}
 QPushButton#btnEngrenagem {{
+    background: {COR_SUPERFICIE};
+    color: {COR_BOTOES_SPOTIFY};
     border: none; border-radius: {px(8)}px;
     min-width: {px(32)}px; min-height: {px(32)}px;
     font-size: {px(16)}px;
 }}
-QPushButton#btnSpotify:hover, QPushButton#btnEngrenagem:hover {{
-    background: {COR_SUPERFICIE_HOVER};
-    border-color: {COR_DESTAQUE};
+QPushButton#btnSpotify:hover {{
+    background: rgba(255,255,255,0.10);
     color: {COR_DESTAQUE};
+}}
+QPushButton#btnEngrenagem:hover {{
+    background: {COR_SUPERFICIE_HOVER};
+    color: {COR_DESTAQUE};
+}}
+QPushButton#btnSpotify:pressed {{
+    background: rgba(255,255,255,0.18);
 }}
 QPushButton#btnSpotify:disabled {{
     color: {COR_TEXTO_APAGADO}; opacity: 0.35;

@@ -86,6 +86,7 @@ class _EspectroBarras(QWidget):
 
     def paintEvent(self, event):
         from config import COR_DESTAQUE
+
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         p.setPen(Qt.PenStyle.NoPen)
@@ -385,8 +386,7 @@ class WidgetWindows(QWidget):
         linha = QHBoxLayout()
         linha.setSpacing(px(6))
         linha.setContentsMargins(0, 0, 0, 0)
-        self.lbl_prog_dia = self._rotulo(
-            "progLabel", t("day_progress"), Qt.AlignmentFlag.AlignRight)
+        self.lbl_prog_dia = self._rotulo("progLabel", t("day_progress"), Qt.AlignmentFlag.AlignRight)
         self.lbl_prog_pct = self._rotulo("progPct", "0%", Qt.AlignmentFlag.AlignRight)
         for w in (self.lbl_prog_dia, self.lbl_prog_pct):
             w.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
@@ -416,6 +416,7 @@ class WidgetWindows(QWidget):
 
     def _aplicar_visibilidade(self):
         import config as cfg
+
         cal = bool(getattr(cfg, "MOSTRAR_CALENDARIO", True))
         self._cal_grid_host.setVisible(cal)
         self.lbl_prog_dia.setVisible(cal)
@@ -468,6 +469,7 @@ class WidgetWindows(QWidget):
         self._watch_mtimes = self._mtime_arquivos()
         try:
             import weather as mod_clima
+
             mod_clima.limpar_cache_clima()
         except Exception:
             pass
@@ -481,6 +483,7 @@ class WidgetWindows(QWidget):
         self._timer_clima.timeout.connect(self._buscar_clima)
         try:
             from config import ATUALIZAR_CLIMA_SEG
+
             ms = max(60, int(ATUALIZAR_CLIMA_SEG)) * 1000
         except Exception:
             ms = 600_000
@@ -489,6 +492,7 @@ class WidgetWindows(QWidget):
         self._timer_spotify.timeout.connect(self._tick_spotify)
         try:
             from config import ATUALIZAR_SPOTIFY_SEG
+
             sms = max(1, int(ATUALIZAR_SPOTIFY_SEG)) * 1000
         except Exception:
             sms = 3000
@@ -499,6 +503,7 @@ class WidgetWindows(QWidget):
         self._timer_watch.timeout.connect(self._verificar_arquivos)
         try:
             from config import VERIFICAR_ARQUIVOS_SEG
+
             wms = max(1, int(VERIFICAR_ARQUIVOS_SEG)) * 1000
         except Exception:
             wms = 5000
@@ -508,6 +513,7 @@ class WidgetWindows(QWidget):
         self._timer_espectro.start(100)
         try:
             import wallpaper_theme as mod_wall
+
             self._wall_sig = mod_wall.assinatura_wallpaper()
         except Exception:
             self._wall_sig = None
@@ -558,10 +564,12 @@ class WidgetWindows(QWidget):
 
     def _aplicar_hot_reload(self):
         from win.settings import PaginaConfig
+
         PaginaConfig._recarregar_modulos()
         import win.settings as mod_set
         import win.window as mod_win
         from config.i18n import t as t_now
+
         mod_set.t = t_now
         mod_win.t = t_now
         self.setStyleSheet(gerar_qss())
@@ -578,6 +586,7 @@ class WidgetWindows(QWidget):
     def _reiniciar_processo(self):
         import os
         import sys
+
         try:
             self._espectro.stop()
         except Exception:
@@ -587,15 +596,18 @@ class WidgetWindows(QWidget):
 
     def _tick_espectro(self):
         import config as cfg
+
         if getattr(cfg, "MOSTRAR_ESPECTRO", True):
             self.espectro_area.set_levels(self._espectro.get_bars())
 
     def _verificar_wallpaper(self):
         import config as cfg
+
         if not getattr(cfg, "ADAPTAR_WALLPAPER_AUTO", False):
             return
         try:
             import wallpaper_theme as mod_wall
+
             sig = mod_wall.assinatura_wallpaper()
         except Exception:
             return
@@ -618,6 +630,7 @@ class WidgetWindows(QWidget):
     def _bg_adaptar_wallpaper(self):
         try:
             import wallpaper_theme as mod_wall
+
             tema, info = mod_wall.adaptar_ao_wallpaper()
         except Exception as e:
             log.debug("auto wallpaper: %s", e)
@@ -630,10 +643,8 @@ class WidgetWindows(QWidget):
             return
         try:
             from win.settings import _gravar_constantes
-            cores = {
-                k: v for k, v in tema.items()
-                if str(k).startswith("COR_") or k == "OPACIDADE_FUNDO"
-            }
+
+            cores = {k: v for k, v in tema.items() if str(k).startswith("COR_") or k == "OPACIDADE_FUNDO"}
             _gravar_constantes(_RAIZ / "config" / "colors.py", cores)
             self._aplicar_hot_reload()
             log.info("cores adaptadas automaticamente de %s", info)
@@ -642,12 +653,15 @@ class WidgetWindows(QWidget):
 
     def _atualizar_nota_spotify(self):
         from config import COR_DESTAQUE
+
         self.img_nota_spotify.setPixmap(pix_nota(px(16), COR_DESTAQUE))
 
     def _atualizar_icone_clima(self, codigo):
         from config import COR_TEXTO
+
         try:
             import weather as mod_clima
+
             tipo = mod_clima.SOL if codigo is None else mod_clima.tipo_icone(int(codigo))
         except Exception:
             tipo = "sol"
@@ -659,9 +673,7 @@ class WidgetWindows(QWidget):
         self.lbl_hora.setText(agora.strftime("%H"))
         self.lbl_minuto.setText(agora.strftime("%M"))
         self.lbl_diasem.setText(t(f"weekday_{agora.weekday()}").upper())
-        self.lbl_data.setText(
-            f"{agora.day:02d} / {t(f'month_{agora.month}').upper()} / {agora.year}"
-        )
+        self.lbl_data.setText(f"{agora.day:02d} / {t(f'month_{agora.month}').upper()} / {agora.year}")
         seg = agora.hour * 3600 + agora.minute * 60 + agora.second
         prog = seg / 86400
         self.lbl_prog_pct.setText(f"{int(prog * 100)}%")
@@ -702,6 +714,7 @@ class WidgetWindows(QWidget):
     def _bg_clima(self):
         try:
             import weather as mod_clima
+
             dados = mod_clima.buscar()
         except Exception as e:
             log.warning("clima: %s", e)
@@ -710,6 +723,7 @@ class WidgetWindows(QWidget):
 
     def _aplicar_clima(self, dados):
         import config as cfg
+
         if not dados:
             self.lbl_cidade.setText(t("offline"))
             self.lbl_descricao.setText("")
@@ -729,12 +743,12 @@ class WidgetWindows(QWidget):
         self.lbl_cidade.setText(str(dados.get("cidade") or "--"))
         self.lbl_descricao.setText(str(dados.get("descricao") or ""))
         self.lbl_detalhe.setText(
-            t("wind_hum", vento=dados.get("vento_ms", "--"),
-              umidade=dados.get("umidade", "--"))
+            t("wind_hum", vento=dados.get("vento_ms", "--"), umidade=dados.get("umidade", "--"))
         )
         previsao = dados.get("previsao") or []
         import weather as mod_clima
         from config import COR_TEXTO_SECUNDARIO
+
         for i, (lbl_dia, img, lbl_temp) in enumerate(self._previsao_widgets):
             if i < len(previsao):
                 d = previsao[i]
@@ -764,6 +778,7 @@ class WidgetWindows(QWidget):
     def _bg_spotify(self):
         try:
             import spotify as mod
+
             dados = mod.buscar_faixa()
         except Exception as e:
             log.debug("spotify: %s", e)
@@ -772,6 +787,7 @@ class WidgetWindows(QWidget):
 
     def _definir_icone_media(self, botao: QPushButton, tipo: str):
         from config import COR_DESTAQUE
+
         tamanho = px(15)
         icone = QIcon()
         icone.addPixmap(pix_media(tipo, tamanho, COR_DESTAQUE), QIcon.Mode.Normal)
@@ -782,11 +798,13 @@ class WidgetWindows(QWidget):
         """Redesenha os ícones que têm a cor gravada num QPixmap (não seguem
         QSS sozinhos), pra reagir na hora a uma troca de tema/cor."""
         self._definir_icone_media(self.btn_spotify_prev, "prev")
-        self._definir_icone_media(self.btn_spotify_play,
-                                   "pause" if getattr(self, "_spotify_tocando", False) else "play")
+        self._definir_icone_media(
+            self.btn_spotify_play, "pause" if getattr(self, "_spotify_tocando", False) else "play"
+        )
         self._definir_icone_media(self.btn_spotify_next, "next")
         if self.img_status_musica.isVisible():
             from config import COR_DESTAQUE
+
             self.img_status_musica.setPixmap(pix_media("pause", px(13), COR_DESTAQUE))
         self._atualizar_nota_spotify()
         self._atualizar_icone_clima(getattr(self, "_codigo_clima_atual", None))
@@ -820,6 +838,7 @@ class WidgetWindows(QWidget):
             self.img_status_musica.hide()
         else:
             from config import COR_DESTAQUE
+
             self.img_status_musica.setPixmap(pix_media("pause", px(13), COR_DESTAQUE))
             self.img_status_musica.show()
         self.lbl_titulo.setText(str(dados.get("titulo") or ""))
@@ -849,6 +868,7 @@ class WidgetWindows(QWidget):
                 dados = Path(url[7:]).read_bytes()
             else:
                 import requests
+
                 dados = requests.get(url, timeout=10).content
             self.capa_pronta.emit(dados)
         except Exception as e:
@@ -859,9 +879,16 @@ class WidgetWindows(QWidget):
         if not pm.loadFromData(dados):
             return
         lado = px(TAMANHO_CAPA)
-        self.btn_capa.setIcon(QIcon(pm.scaled(
-            lado, lado, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-            Qt.TransformationMode.SmoothTransformation)))
+        self.btn_capa.setIcon(
+            QIcon(
+                pm.scaled(
+                    lado,
+                    lado,
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+            )
+        )
         self.btn_capa.setIconSize(self.btn_capa.size())
 
     def _spotify_cmd(self, metodo: str):
@@ -879,8 +906,7 @@ class WidgetWindows(QWidget):
         if self._volume_sync:
             return
         v = max(0.0, min(1.0, valor / 100.0))
-        threading.Thread(
-            target=lambda: __import__("spotify").definir_volume(v), daemon=True).start()
+        threading.Thread(target=lambda: __import__("spotify").definir_volume(v), daemon=True).start()
 
     def _geo_tela(self):
         screen = self.screen() or QApplication.primaryScreen()
@@ -1014,6 +1040,7 @@ class WidgetWindows(QWidget):
             return
         if event.button() == Qt.MouseButton.LeftButton:
             from PySide6.QtWidgets import QAbstractButton, QAbstractSlider, QLineEdit, QListWidget
+
             w = self.childAt(event.position().toPoint())
             while w is not None and w is not self:
                 if isinstance(w, (QAbstractButton, QAbstractSlider, QLineEdit, QListWidget)):

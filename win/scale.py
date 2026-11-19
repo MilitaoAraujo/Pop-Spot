@@ -7,6 +7,7 @@ _ESCALA_MAX = 1.30
 def escala() -> float:
     try:
         from config import ESCALA
+
         return max(_ESCALA_MIN, min(_ESCALA_MAX, float(ESCALA)))
     except Exception:
         return 1.0

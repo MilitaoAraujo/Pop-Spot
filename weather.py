@@ -25,60 +25,150 @@ _CHUVA_ARQ = Path(__file__).parent / "config" / ".chuva_notify.json"
 
 # Códigos wttr.in de chuva forte / tempestade
 _CHUVA_FORTE_CODIGOS = {
-    302, 305, 308, 311, 314, 356, 359, 365, 377, 386, 389, 392, 395,
+    302,
+    305,
+    308,
+    311,
+    314,
+    356,
+    359,
+    365,
+    377,
+    386,
+    389,
+    392,
+    395,
 }
 
 _ICONES = {
-    113: SOL, 116: SOL_NUVEM, 119: NUVEM, 122: NUVEM, 143: NEBLINA,
-    176: SOL_CHUVA, 185: NEVE, 200: TEMPESTADE, 227: NEVE, 230: NEVE,
-    248: NEBLINA, 260: NEBLINA, 263: SOL_CHUVA, 266: CHUVA, 281: NEVE,
-    284: NEVE, 293: SOL_CHUVA, 296: CHUVA, 299: CHUVA, 302: CHUVA,
-    305: CHUVA, 308: CHUVA, 311: NEVE, 314: NEVE, 317: NEVE, 320: NEVE,
-    323: NEVE, 326: NEVE, 329: NEVE, 332: NEVE, 335: NEVE, 338: NEVE,
-    350: NEVE, 353: SOL_CHUVA, 356: CHUVA, 359: CHUVA, 362: NEVE,
-    365: NEVE, 368: NEVE, 371: NEVE, 374: NEVE, 377: NEVE,
-    386: TEMPESTADE, 389: TEMPESTADE, 392: TEMPESTADE, 395: TEMPESTADE,
+    113: SOL,
+    116: SOL_NUVEM,
+    119: NUVEM,
+    122: NUVEM,
+    143: NEBLINA,
+    176: SOL_CHUVA,
+    185: NEVE,
+    200: TEMPESTADE,
+    227: NEVE,
+    230: NEVE,
+    248: NEBLINA,
+    260: NEBLINA,
+    263: SOL_CHUVA,
+    266: CHUVA,
+    281: NEVE,
+    284: NEVE,
+    293: SOL_CHUVA,
+    296: CHUVA,
+    299: CHUVA,
+    302: CHUVA,
+    305: CHUVA,
+    308: CHUVA,
+    311: NEVE,
+    314: NEVE,
+    317: NEVE,
+    320: NEVE,
+    323: NEVE,
+    326: NEVE,
+    329: NEVE,
+    332: NEVE,
+    335: NEVE,
+    338: NEVE,
+    350: NEVE,
+    353: SOL_CHUVA,
+    356: CHUVA,
+    359: CHUVA,
+    362: NEVE,
+    365: NEVE,
+    368: NEVE,
+    371: NEVE,
+    374: NEVE,
+    377: NEVE,
+    386: TEMPESTADE,
+    389: TEMPESTADE,
+    392: TEMPESTADE,
+    395: TEMPESTADE,
 }
 
 # Open-Meteo WMO → mesmo conjunto de ícones
 _WMO = {
-    0: SOL, 1: SOL_NUVEM, 2: SOL_NUVEM, 3: NUVEM,
-    45: NEBLINA, 48: NEBLINA,
-    51: SOL_CHUVA, 53: CHUVA, 55: CHUVA,
-    61: SOL_CHUVA, 63: CHUVA, 65: CHUVA,
-    71: NEVE, 73: NEVE, 75: NEVE, 77: NEVE,
-    80: SOL_CHUVA, 81: CHUVA, 82: CHUVA,
-    85: NEVE, 86: NEVE,
-    95: TEMPESTADE, 96: TEMPESTADE, 99: TEMPESTADE,
+    0: SOL,
+    1: SOL_NUVEM,
+    2: SOL_NUVEM,
+    3: NUVEM,
+    45: NEBLINA,
+    48: NEBLINA,
+    51: SOL_CHUVA,
+    53: CHUVA,
+    55: CHUVA,
+    61: SOL_CHUVA,
+    63: CHUVA,
+    65: CHUVA,
+    71: NEVE,
+    73: NEVE,
+    75: NEVE,
+    77: NEVE,
+    80: SOL_CHUVA,
+    81: CHUVA,
+    82: CHUVA,
+    85: NEVE,
+    86: NEVE,
+    95: TEMPESTADE,
+    96: TEMPESTADE,
+    99: TEMPESTADE,
 }
 
 _DESC_PT = {
-    "Clear": "Céu limpo", "Sunny": "Ensolarado",
-    "Partly cloudy": "Parcialmente nublado", "Cloudy": "Nublado",
-    "Overcast": "Encoberto", "Mist": "Névoa", "Fog": "Neblina",
+    "Clear": "Céu limpo",
+    "Sunny": "Ensolarado",
+    "Partly cloudy": "Parcialmente nublado",
+    "Cloudy": "Nublado",
+    "Overcast": "Encoberto",
+    "Mist": "Névoa",
+    "Fog": "Neblina",
     "Patchy rain nearby": "Chuva irregular nas redondezas",
     "Patchy rain possible": "Possibilidade de chuva irregular",
-    "Light drizzle": "Garoa leve", "Light rain": "Chuva fraca",
-    "Moderate rain": "Chuva moderada", "Heavy rain": "Chuva forte",
+    "Light drizzle": "Garoa leve",
+    "Light rain": "Chuva fraca",
+    "Moderate rain": "Chuva moderada",
+    "Heavy rain": "Chuva forte",
     "Light rain shower": "Pancadas de chuva fraca",
     "Thundery outbreaks possible": "Possíveis trovoadas",
     "Patchy light rain with thunder": "Chuva fraca com trovoadas",
     "Moderate or heavy rain with thunder": "Chuva com trovoadas",
-    "Light snow": "Neve fraca", "Patchy light snow": "Neve fraca irregular",
+    "Light snow": "Neve fraca",
+    "Patchy light snow": "Neve fraca irregular",
 }
 
 _loc_cache: dict | None = None
 
 # UF → estado (consulta tipo "Campina Grande PB")
 _UF_BR = {
-    "AC": "Acre", "AL": "Alagoas", "AP": "Amapá", "AM": "Amazonas",
-    "BA": "Bahia", "CE": "Ceará", "DF": "Distrito Federal",
-    "ES": "Espírito Santo", "GO": "Goiás", "MA": "Maranhão",
-    "MT": "Mato Grosso", "MS": "Mato Grosso do Sul", "MG": "Minas Gerais",
-    "PA": "Pará", "PB": "Paraíba", "PR": "Paraná", "PE": "Pernambuco",
-    "PI": "Piauí", "RJ": "Rio de Janeiro", "RN": "Rio Grande do Norte",
-    "RS": "Rio Grande do Sul", "RO": "Rondônia", "RR": "Roraima",
-    "SC": "Santa Catarina", "SP": "São Paulo", "SE": "Sergipe",
+    "AC": "Acre",
+    "AL": "Alagoas",
+    "AP": "Amapá",
+    "AM": "Amazonas",
+    "BA": "Bahia",
+    "CE": "Ceará",
+    "DF": "Distrito Federal",
+    "ES": "Espírito Santo",
+    "GO": "Goiás",
+    "MA": "Maranhão",
+    "MT": "Mato Grosso",
+    "MS": "Mato Grosso do Sul",
+    "MG": "Minas Gerais",
+    "PA": "Pará",
+    "PB": "Paraíba",
+    "PR": "Paraná",
+    "PE": "Pernambuco",
+    "PI": "Piauí",
+    "RJ": "Rio de Janeiro",
+    "RN": "Rio Grande do Norte",
+    "RS": "Rio Grande do Sul",
+    "RO": "Rondônia",
+    "RR": "Roraima",
+    "SC": "Santa Catarina",
+    "SP": "São Paulo",
+    "SE": "Sergipe",
     "TO": "Tocantins",
 }
 
@@ -86,6 +176,7 @@ _UF_BR = {
 def _lang() -> str:
     try:
         from config.i18n import idioma
+
         return idioma()
     except Exception:
         return "pt"
@@ -101,6 +192,7 @@ def tipo_icone(codigo: int) -> str:
 
 def icone_pixbuf(codigo: int, tamanho: int = 36, cor: str = "#e0e0e0"):
     from weather_icons import renderizar as renderizar_icone
+
     return renderizar_icone(tipo_icone(codigo), tamanho=tamanho, cor=cor)
 
 
@@ -120,6 +212,7 @@ def limpar_cache_clima():
 def _ttl_fresco() -> int:
     try:
         from config import ATUALIZAR_CLIMA_SEG
+
         return max(60, int(ATUALIZAR_CLIMA_SEG) - 30)
     except Exception:
         return 570
@@ -128,6 +221,7 @@ def _ttl_fresco() -> int:
 def _ttl_max() -> int:
     try:
         from config import CACHE_CLIMA_MAX_SEG
+
         return max(600, int(CACHE_CLIMA_MAX_SEG))
     except Exception:
         return 6 * 3600
@@ -185,6 +279,7 @@ def _coords_geoclue():
         import time
 
         import dbus
+
         bus = dbus.SystemBus()
         mgr = dbus.Interface(
             bus.get_object("org.freedesktop.GeoClue2", "/org/freedesktop/GeoClue2/Manager"),
@@ -225,24 +320,24 @@ def _detectar_localizacao():
         lat, lon = gc
     else:
         try:
-            d = requests.get(
-                "http://ip-api.com/json/?fields=lat,lon,city", timeout=5).json()
+            d = requests.get("http://ip-api.com/json/?fields=lat,lon,city", timeout=5).json()
             lat, lon, cidade = d["lat"], d["lon"], d.get("city", "")
         except Exception as e:
             log.warning("ip-api: %s", e)
             return None
 
     try:
-        addr = requests.get(
-            "https://nominatim.openstreetmap.org/reverse",
-            params={"lat": lat, "lon": lon, "format": "json", "zoom": 10},
-            headers={"User-Agent": "desktop-widget/1.0"},
-            timeout=5,
-        ).json().get("address", {})
-        cidade = (
-            addr.get("city") or addr.get("town") or addr.get("village")
-            or addr.get("county") or cidade
+        addr = (
+            requests.get(
+                "https://nominatim.openstreetmap.org/reverse",
+                params={"lat": lat, "lon": lon, "format": "json", "zoom": 10},
+                headers={"User-Agent": "desktop-widget/1.0"},
+                timeout=5,
+            )
+            .json()
+            .get("address", {})
         )
+        cidade = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("county") or cidade
     except Exception as e:
         log.warning("Nominatim: %s", e)
 
@@ -276,8 +371,8 @@ def _partir_consulta(nome: str) -> tuple[str, str | None]:
 
 
 def _pontuar_geo(x: dict, nome: str, estado: str | None) -> tuple:
-    n = (x.get("name") or "")
-    admin = (x.get("admin1") or "")
+    n = x.get("name") or ""
+    admin = x.get("admin1") or ""
     pop = int(x.get("population") or 0)
     fc = str(x.get("feature_code") or "")
     score = 0
@@ -309,6 +404,7 @@ def _escolher_geo(results: list, nome: str, estado: str | None):
 def _resolver_alvo():
     """Retorna (alvo_wttr, cidade_exibir, lat, lon)."""
     from config import CIDADE
+
     cfg = (CIDADE or "").strip()
     if cfg:
         # coords manuais "lat,lon" (sem espaço de nome de cidade)
@@ -336,6 +432,7 @@ def _dias_semana_pt(iso_date: str) -> str:
         import datetime
 
         from config.i18n import t
+
         d = datetime.date.fromisoformat(iso_date[:10])
         return t(f"fc_{d.weekday()}")
     except Exception:
@@ -347,24 +444,30 @@ def _buscar_wttr(alvo: str, cidade_exibir):
     accept = "en-US,en;q=0.9" if lang == "en" else "pt-BR,pt;q=0.9"
     url = (
         f"https://wttr.in/{requests.utils.quote(alvo, safe=',.-')}?format=j1&lang={lang}"
-        if alvo else f"https://wttr.in/?format=j1&lang={lang}"
+        if alvo
+        else f"https://wttr.in/?format=j1&lang={lang}"
     )
     d = requests.get(
-        url, timeout=10,
+        url,
+        timeout=10,
         headers={"Accept-Language": accept, "User-Agent": "desktop-widget/1.0"},
     ).json()
     cc = d["current_condition"][0]
     area = d["nearest_area"][0]
     previsao = []
     for dia in d.get("weather", [])[:3]:
-        previsao.append({
-            "dia": _dias_semana_pt(dia.get("date", "")),
-            "max_c": int(dia.get("maxtempC", 0)),
-            "min_c": int(dia.get("mintempC", 0)),
-            "codigo": int(dia.get("hourly", [{}])[4].get("weatherCode", 113)
-                          if len(dia.get("hourly", [])) > 4
-                          else dia.get("hourly", [{}])[0].get("weatherCode", 113)),
-        })
+        previsao.append(
+            {
+                "dia": _dias_semana_pt(dia.get("date", "")),
+                "max_c": int(dia.get("maxtempC", 0)),
+                "min_c": int(dia.get("mintempC", 0)),
+                "codigo": int(
+                    dia.get("hourly", [{}])[4].get("weatherCode", 113)
+                    if len(dia.get("hourly", [])) > 4
+                    else dia.get("hourly", [{}])[0].get("weatherCode", 113)
+                ),
+            }
+        )
     return {
         "cidade": cidade_exibir or area["areaName"][0]["value"],
         "temp": int(cc["temp_C"]),
@@ -399,6 +502,7 @@ def _geocode_cidade(nome: str):
 
 def _buscar_open_meteo(lat, lon, cidade_exibir):
     from config.i18n import t
+
     r = requests.get(
         "https://api.open-meteo.com/v1/forecast",
         params={
@@ -422,12 +526,14 @@ def _buscar_open_meteo(lat, lon, cidade_exibir):
     previsao = []
     for i in range(min(3, len(daily.get("time", [])))):
         tw = _WMO.get(int(daily["weather_code"][i]), SOL_NUVEM)
-        previsao.append({
-            "dia": _dias_semana_pt(daily["time"][i]),
-            "max_c": int(round(daily["temperature_2m_max"][i])),
-            "min_c": int(round(daily["temperature_2m_min"][i])),
-            "codigo": rev.get(tw, 116),
-        })
+        previsao.append(
+            {
+                "dia": _dias_semana_pt(daily["time"][i]),
+                "max_c": int(round(daily["temperature_2m_max"][i])),
+                "min_c": int(round(daily["temperature_2m_min"][i])),
+                "codigo": rev.get(tw, 116),
+            }
+        )
     temp_c = int(round(cur["temperature_2m"]))
     return {
         "cidade": cidade_exibir or "—",
@@ -435,9 +541,14 @@ def _buscar_open_meteo(lat, lon, cidade_exibir):
         "temp_c": temp_c,
         "temp_f": int(round(temp_c * 9 / 5 + 32)),
         "descricao": {
-            SOL: t("wx_clear"), SOL_NUVEM: t("wx_partly"), NUVEM: t("wx_cloudy"),
-            CHUVA: t("wx_rain"), SOL_CHUVA: t("wx_showers"), TEMPESTADE: t("wx_storm"),
-            NEVE: t("wx_snow"), NEBLINA: t("wx_fog"),
+            SOL: t("wx_clear"),
+            SOL_NUVEM: t("wx_partly"),
+            NUVEM: t("wx_cloudy"),
+            CHUVA: t("wx_rain"),
+            SOL_CHUVA: t("wx_showers"),
+            TEMPESTADE: t("wx_storm"),
+            NEVE: t("wx_snow"),
+            NEBLINA: t("wx_fog"),
         }.get(tipo, "—"),
         "umidade": str(int(round(cur["relative_humidity_2m"]))),
         "vento_ms": round(float(cur["wind_speed_10m"]), 1),
@@ -449,6 +560,7 @@ def _buscar_open_meteo(lat, lon, cidade_exibir):
 
 def buscar() -> dict | None:
     from config import CIDADE
+
     chave = (CIDADE or "").strip() or "__auto__"
     fresco = _ler_cache(chave, max_idade=_ttl_fresco())
     if fresco is not None:
@@ -540,8 +652,13 @@ def eh_chuva_forte(dados: dict | None) -> bool:
     return any(
         p in desc
         for p in (
-            "chuva forte", "tempestade", "trovoada", "torrencial",
-            "heavy rain", "thunder", "storm",
+            "chuva forte",
+            "tempestade",
+            "trovoada",
+            "torrencial",
+            "heavy rain",
+            "thunder",
+            "storm",
         )
     )
 
@@ -552,6 +669,7 @@ def notificar_chuva_forte(dados: dict) -> bool:
         return False
     try:
         from config import NOTIFICAR_CHUVA_FORTE
+
         if not NOTIFICAR_CHUVA_FORTE:
             return False
     except Exception:
@@ -560,13 +678,11 @@ def notificar_chuva_forte(dados: dict) -> bool:
     estado = _ler_estado_chuva()
     agora = time.time()
     codigo = int(dados.get("codigo") or 0)
-    if (
-        estado.get("codigo") == codigo
-        and agora - float(estado.get("ts", 0)) < 3 * 3600
-    ):
+    if estado.get("codigo") == codigo and agora - float(estado.get("ts", 0)) < 3 * 3600:
         return False
 
     from config.i18n import t
+
     cidade = dados.get("cidade") or t("rain_region")
     desc = dados.get("descricao") or t("rain_title")
     titulo, corpo = t("rain_title"), f"{cidade}: {desc}"
@@ -586,9 +702,12 @@ def _notificar_linux(titulo: str, corpo: str) -> bool:
         subprocess.run(
             [
                 "notify-send",
-                "-u", "critical",
-                "-a", "Pop Spot",
-                "-i", "weather-showers",
+                "-u",
+                "critical",
+                "-a",
+                "Pop Spot",
+                "-i",
+                "weather-showers",
                 titulo,
                 corpo,
             ],
@@ -605,6 +724,7 @@ def _notificar_linux(titulo: str, corpo: str) -> bool:
 
 def _notificar_windows(titulo: str, corpo: str) -> bool:
     import json
+
     t_js, c_js = json.dumps(titulo), json.dumps(corpo)
     ps = (
         "Add-Type -AssemblyName System.Windows.Forms; "

@@ -7,6 +7,7 @@ from __future__ import annotations
 def idioma() -> str:
     try:
         from config import personalizar
+
         val = str(getattr(personalizar, "IDIOMA", "pt")).strip().lower()
         return "en" if val.startswith("en") else "pt"
     except Exception:
@@ -36,6 +37,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "side": "Lado da tela",
         "side_right": "Direita",
         "side_left": "Esquerda",
+        "corner_style": "Formato dos cantos",
+        "corner_rounded": "Arredondado",
+        "corner_square": "Quadrado",
+        "section_general": "GERAL",
+        "section_appearance": "APARÊNCIA",
         "blocks": "BLOCOS VISÍVEIS",
         "block_calendar": "Calendário e progresso do dia",
         "block_spotify": "Spotify",
@@ -71,6 +77,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "reading_wallpaper": "Lendo wallpaper…",
         "adapt_fail": "Não foi possível adaptar",
         "colors_from": "Cores de “{name}” — Salvar para confirmar",
+        "desktop_source": "área de trabalho",
         "playing": "TOCANDO",
         "paused": "PAUSADO",
         "no_spotify": "Spotify não está aberto",
@@ -155,6 +162,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "side": "Screen side",
         "side_right": "Right",
         "side_left": "Left",
+        "corner_style": "Corner style",
+        "corner_rounded": "Rounded",
+        "corner_square": "Square",
+        "section_general": "GENERAL",
+        "section_appearance": "APPEARANCE",
         "blocks": "VISIBLE BLOCKS",
         "block_calendar": "Calendar and day progress",
         "block_spotify": "Spotify",
@@ -190,6 +202,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "reading_wallpaper": "Reading wallpaper…",
         "adapt_fail": "Could not match wallpaper",
         "colors_from": "Colors from “{name}” — Save to confirm",
+        "desktop_source": "desktop",
         "playing": "PLAYING",
         "paused": "PAUSED",
         "no_spotify": "Spotify is not open",

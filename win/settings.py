@@ -57,6 +57,7 @@ class _SliderSemRoda(QSlider):
     def wheelEvent(self, event):
         event.ignore()
 
+
 _CORES = (
     ("COR_BASE", "cor_base", COR_BASE),
     ("COR_SUPERFICIE", "cor_superficie", COR_SUPERFICIE),
@@ -280,8 +281,7 @@ class PaginaConfig(QWidget):
         self.scale_tamanho.setSingleStep(1)
         self.scale_tamanho.setPageStep(5)
         self.lbl_val_tam = self._lbl("dicaConfig", "")
-        self.scale_tamanho.valueChanged.connect(
-            lambda n: self.lbl_val_tam.setText(f"{n / 100:.2f}"))
+        self.scale_tamanho.valueChanged.connect(lambda n: self.lbl_val_tam.setText(f"{n / 100:.2f}"))
         v.addWidget(self.scale_tamanho)
         v.addWidget(self.lbl_val_tam)
         self.lbl_dica_tam = self._lbl("dicaConfig", t("widget_size_hint"))
@@ -295,8 +295,7 @@ class PaginaConfig(QWidget):
         self.scale_opacidade.setRange(40, 100)
         self.scale_opacidade.setSingleStep(1)
         self.lbl_val_op = self._lbl("dicaConfig", "")
-        self.scale_opacidade.valueChanged.connect(
-            lambda n: self.lbl_val_op.setText(f"{n / 100:.2f}"))
+        self.scale_opacidade.valueChanged.connect(lambda n: self.lbl_val_op.setText(f"{n / 100:.2f}"))
         v.addWidget(self.scale_opacidade)
         v.addWidget(self.lbl_val_op)
 
@@ -309,7 +308,7 @@ class PaginaConfig(QWidget):
         for i in range(0, len(nomes), 2):
             linha_p = QHBoxLayout()
             linha_p.setSpacing(px(8))
-            for nome in nomes[i:i + 2]:
+            for nome in nomes[i : i + 2]:
                 b = QPushButton(t(_PRESET_I18N.get(nome, nome)))
                 b.setObjectName("btnConfigSec")
                 b.setMinimumHeight(px(30))
@@ -392,6 +391,7 @@ class PaginaConfig(QWidget):
 
     def carregar_valores(self) -> None:
         import config as cfg
+
         self._idioma_lock = True
         try:
             (self.radio_en if idioma() == "en" else self.radio_pt).setChecked(True)
@@ -420,6 +420,7 @@ class PaginaConfig(QWidget):
         if sys.platform == "win32":
             try:
                 from win.autostart import esta_ligado
+
                 self.chk_autostart.blockSignals(True)
                 self.chk_autostart.setChecked(esta_ligado())
                 self.chk_autostart.blockSignals(False)
@@ -441,6 +442,7 @@ class PaginaConfig(QWidget):
 
     def _aplicar_idioma(self) -> None:
         from config.i18n import t
+
         self.lbl_titulo.setText(t("settings"))
         self.lbl_dica.setText(t("settings_hint"))
         self.lbl_versao.setText(t("version", v=VERSAO))
@@ -505,6 +507,7 @@ class PaginaConfig(QWidget):
             return
         try:
             from win import autostart
+
             ok = autostart.ligar() if ligado else autostart.desligar()
         except Exception as e:
             ok = False
@@ -515,6 +518,7 @@ class PaginaConfig(QWidget):
             self.chk_autostart.blockSignals(True)
             try:
                 from win.autostart import esta_ligado
+
                 self.chk_autostart.setChecked(esta_ligado())
             except Exception:
                 pass
@@ -539,6 +543,7 @@ class PaginaConfig(QWidget):
     def _bg_cidades(self, texto: str) -> None:
         try:
             import weather as mod_clima
+
             sug = mod_clima.sugerir_cidades(texto)
         except Exception:
             sug = []
@@ -614,6 +619,7 @@ class PaginaConfig(QWidget):
                 from PySide6.QtCore import QRect
 
                 import wallpaper_theme as mod_wall
+
                 janela = self.window()
                 excluir = QRect(janela.pos(), janela.size())
                 img = mod_wall.capturar_tela(excluir)
@@ -627,6 +633,7 @@ class PaginaConfig(QWidget):
     def _bg_wall(self, pixels=None, origem=None) -> None:
         try:
             import wallpaper_theme as mod_wall
+
             if pixels:
                 tema, info = mod_wall.tema_de_pixels(pixels), origem
             else:
@@ -666,21 +673,30 @@ class PaginaConfig(QWidget):
         cores["OPACIDADE_FUNDO"] = opacidade
         cores["RAIO_BORDA"] = 0 if self.radio_cantos_quad.isChecked() else 20
         try:
-            _gravar_constantes(_RAIZ / "config" / "personalizar.py", {
-                "CIDADE": cidade,
-                "IDIOMA": "en" if self.radio_en.isChecked() else "pt",
-                "UNIDADE_TEMPERATURA": unidade,
-                "MOSTRAR_CALENDARIO": self.chk_calendario.isChecked(),
-                "MOSTRAR_SPOTIFY": self.chk_spotify.isChecked(),
-                "MOSTRAR_ESPECTRO": self.chk_espectro.isChecked(),
-                "MOSTRAR_PREVISAO": self.chk_previsao.isChecked(),
-                "NOTIFICAR_CHUVA_FORTE": self.chk_chuva.isChecked(),
-                "ADAPTAR_WALLPAPER_AUTO": self.chk_wall_auto.isChecked(),
-            })
+            _gravar_constantes(
+                _RAIZ / "config" / "personalizar.py",
+                {
+                    "CIDADE": cidade,
+                    "IDIOMA": "en" if self.radio_en.isChecked() else "pt",
+                    "UNIDADE_TEMPERATURA": unidade,
+                    "MOSTRAR_CALENDARIO": self.chk_calendario.isChecked(),
+                    "MOSTRAR_SPOTIFY": self.chk_spotify.isChecked(),
+                    "MOSTRAR_ESPECTRO": self.chk_espectro.isChecked(),
+                    "MOSTRAR_PREVISAO": self.chk_previsao.isChecked(),
+                    "NOTIFICAR_CHUVA_FORTE": self.chk_chuva.isChecked(),
+                    "ADAPTAR_WALLPAPER_AUTO": self.chk_wall_auto.isChecked(),
+                },
+            )
             _gravar_constantes(_RAIZ / "config" / "colors.py", cores)
-            _gravar_constantes(_RAIZ / "config" / "layout.py", {
-                "LADO": lado, "POS_X": -1, "POS_Y": -1, "ESCALA": escala,
-            })
+            _gravar_constantes(
+                _RAIZ / "config" / "layout.py",
+                {
+                    "LADO": lado,
+                    "POS_X": -1,
+                    "POS_Y": -1,
+                    "ESCALA": escala,
+                },
+            )
             try:
                 (_RAIZ / "config" / ".widget_pos").unlink(missing_ok=True)
             except Exception:
@@ -703,6 +719,7 @@ class PaginaConfig(QWidget):
         import config.layout
         import config.personalizar
         import config.themes
+
         importlib.reload(config.colors)
         importlib.reload(config.personalizar)
         importlib.reload(config.layout)

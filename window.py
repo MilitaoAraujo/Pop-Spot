@@ -79,13 +79,13 @@ def _px(n: float) -> int:
 
 # Cores editáveis em config/colors.py (acima das derivações automáticas)
 _CORES_EDITAVEIS = (
-    ("COR_BASE",             "cor_base",       COR_BASE),
-    ("COR_SUPERFICIE",       "cor_superficie", COR_SUPERFICIE),
-    ("COR_TEXTO",            "cor_texto",      COR_TEXTO),
-    ("COR_TEXTO_SECUNDARIO", "cor_texto_sec",  COR_TEXTO_SECUNDARIO),
-    ("COR_TEXTO_TERCIARIO",  "cor_texto_ter",  COR_TEXTO_TERCIARIO),
-    ("COR_DESTAQUE",         "cor_destaque",   COR_DESTAQUE),
-    ("COR_BOTOES_SPOTIFY",   "cor_botoes",     COR_BOTOES_SPOTIFY),
+    ("COR_BASE", "cor_base", COR_BASE),
+    ("COR_SUPERFICIE", "cor_superficie", COR_SUPERFICIE),
+    ("COR_TEXTO", "cor_texto", COR_TEXTO),
+    ("COR_TEXTO_SECUNDARIO", "cor_texto_sec", COR_TEXTO_SECUNDARIO),
+    ("COR_TEXTO_TERCIARIO", "cor_texto_ter", COR_TEXTO_TERCIARIO),
+    ("COR_DESTAQUE", "cor_destaque", COR_DESTAQUE),
+    ("COR_BOTOES_SPOTIFY", "cor_botoes", COR_BOTOES_SPOTIFY),
 )
 
 _PRESET_I18N = {
@@ -101,9 +101,9 @@ def _hex_para_rgba(hex_cor: str) -> Gdk.RGBA:
     if len(h) != 6:
         h = "ffffff"
     rgba = Gdk.RGBA()
-    rgba.red   = int(h[0:2], 16) / 255.0
+    rgba.red = int(h[0:2], 16) / 255.0
     rgba.green = int(h[2:4], 16) / 255.0
-    rgba.blue  = int(h[4:6], 16) / 255.0
+    rgba.blue = int(h[4:6], 16) / 255.0
     rgba.alpha = 1.0
     return rgba
 
@@ -120,10 +120,10 @@ class _BotaoMedia(Gtk.Button):
     """Controles prev/play/pause/next — Gtk.Button (visível sem python3-gi-cairo)."""
 
     _ICONES = {
-        "play":  ICONE_SPOTIFY_REPRODUZIR,
+        "play": ICONE_SPOTIFY_REPRODUZIR,
         "pause": ICONE_SPOTIFY_PAUSAR,
-        "prev":  ICONE_SPOTIFY_ANTERIOR,
-        "next":  ICONE_SPOTIFY_PROXIMO,
+        "prev": ICONE_SPOTIFY_ANTERIOR,
+        "next": ICONE_SPOTIFY_PROXIMO,
     }
 
     def __init__(self, tipo: str, tooltip: str):
@@ -138,6 +138,7 @@ class _BotaoMedia(Gtk.Button):
 
     def definir_tamanho(self, w: int, h: int):
         self.set_size_request(w, h)
+
     def set_tipo(self, tipo: str):
         self._tipo = tipo
         self._atualizar_label()
@@ -181,6 +182,7 @@ class _EspectroBarras(Gtk.Box):
             px = max(2, int(h * max(0.0, min(1.0, float(v)))))
             bar.set_size_request(4, px)
 
+
 class _BotaoEngrenagem(Gtk.Button):
     """Botão de engrenagem — abre a tela de configurações."""
 
@@ -213,20 +215,20 @@ for _loc in ("pt_BR.UTF-8", "pt_BR", "pt_PT.UTF-8", "pt_PT", ""):
 class WidgetDesktop(Gtk.Window):
     def __init__(self):
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
-        self._url_capa_atual  = None
-        self._ls              = None
-        self._pos_x           = 0
-        self._pos_y           = 0
-        self._pos_manual      = False
-        self._arrastando      = False
-        self._drag_off_x      = 0.0
-        self._drag_off_y      = 0.0
+        self._url_capa_atual = None
+        self._ls = None
+        self._pos_x = 0
+        self._pos_y = 0
+        self._pos_manual = False
+        self._arrastando = False
+        self._drag_off_x = 0.0
+        self._drag_off_y = 0.0
         self._spotify_ocupado = False
-        self._altura_atual    = 800
-        self._espectro        = AudioSpectrum()
-        self._cal_dia         = -1
-        self._xprop_feito     = False
-        self._css_provider    = None
+        self._altura_atual = 800
+        self._espectro = AudioSpectrum()
+        self._cal_dia = -1
+        self._xprop_feito = False
+        self._css_provider = None
         self._previsao_widgets = []
         self._wall_mtime = None
         self._wall_path_atual = None
@@ -247,7 +249,8 @@ class WidgetDesktop(Gtk.Window):
         novo = Gtk.CssProvider()
         novo.load_from_data(gerar_css())
         Gtk.StyleContext.add_provider_for_screen(
-            Gdk.Screen.get_default(), novo,
+            Gdk.Screen.get_default(),
+            novo,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
         antigo, self._css_provider = self._css_provider, novo
@@ -261,7 +264,7 @@ class WidgetDesktop(Gtk.Window):
         self.set_accept_focus(False)
         self.set_can_focus(False)
 
-        tela   = self.get_screen()
+        tela = self.get_screen()
         visual = tela.get_rgba_visual()
         if visual and tela.is_composited():
             self.set_visual(visual)
@@ -372,8 +375,10 @@ class WidgetDesktop(Gtk.Window):
             return False
         log.info(
             "tela mudou %sx%s → %sx%s",
-            getattr(antigo, "width", "?"), getattr(antigo, "height", "?"),
-            geo.width, geo.height,
+            getattr(antigo, "width", "?"),
+            getattr(antigo, "height", "?"),
+            geo.width,
+            geo.height,
         )
         # Coordenadas absolutas não transferem bem entre resoluções —
         # volta ao lado configurado (LADO) e esquece a posição manual.
@@ -431,16 +436,30 @@ class WidgetDesktop(Gtk.Window):
             import subprocess
 
             from gi.repository import GdkX11
+
             xid = hex(GdkX11.X11Window.get_xid(gw))
             subprocess.run(
-                ["xprop", "-id", xid, "-f", "_NET_WM_STATE", "32a", "-set", "_NET_WM_STATE",
-                 "_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER,"
-                 "_NET_WM_STATE_BELOW,_NET_WM_STATE_STICKY"],
-                check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                [
+                    "xprop",
+                    "-id",
+                    xid,
+                    "-f",
+                    "_NET_WM_STATE",
+                    "32a",
+                    "-set",
+                    "_NET_WM_STATE",
+                    "_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER,"
+                    "_NET_WM_STATE_BELOW,_NET_WM_STATE_STICKY",
+                ],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
             subprocess.run(
                 ["xprop", "-id", xid, "-remove", "_NET_WM_STRUT", "-remove", "_NET_WM_STRUT_PARTIAL"],
-                check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
         except Exception as e:
             log.debug("ewmh x11: %s", e)
@@ -460,9 +479,8 @@ class WidgetDesktop(Gtk.Window):
                     except Exception:
                         pass
                 try:
-                    cur = (
-                        Gdk.Cursor.new_from_name(gw.get_display(), "default")
-                        or Gdk.Cursor.new_from_name(gw.get_display(), "left_ptr")
+                    cur = Gdk.Cursor.new_from_name(gw.get_display(), "default") or Gdk.Cursor.new_from_name(
+                        gw.get_display(), "left_ptr"
                     )
                     if cur is not None:
                         gw.set_cursor(cur)
@@ -481,6 +499,7 @@ class WidgetDesktop(Gtk.Window):
         h = max(1, self.get_allocated_height() or self._altura_atual)
         try:
             import cairo
+
             region = cairo.Region(cairo.RectangleInt(0, 0, w, h))
             gw.input_shape_combine_region(region)
         except Exception as e:
@@ -558,9 +577,9 @@ class WidgetDesktop(Gtk.Window):
             if hasattr(GtkLayerShell, "set_namespace"):
                 GtkLayerShell.set_namespace(self, "desktop-widget")
             GtkLayerShell.set_layer(self, GtkLayerShell.Layer.BOTTOM)
-            GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.TOP,  True)
+            GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.TOP, True)
             GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.LEFT, True)
-            GtkLayerShell.set_margin(self, GtkLayerShell.Edge.TOP,  max(0, self._pos_y))
+            GtkLayerShell.set_margin(self, GtkLayerShell.Edge.TOP, max(0, self._pos_y))
             GtkLayerShell.set_margin(self, GtkLayerShell.Edge.LEFT, max(0, self._pos_x))
             # NONE no desktop; EXCLUSIVE só com a tela de configs aberta.
             GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
@@ -577,10 +596,7 @@ class WidgetDesktop(Gtk.Window):
         self.set_can_focus(ativo)
         if self._ls is not None:
             try:
-                modo = (
-                    self._ls.KeyboardMode.EXCLUSIVE if ativo
-                    else self._ls.KeyboardMode.NONE
-                )
+                modo = self._ls.KeyboardMode.EXCLUSIVE if ativo else self._ls.KeyboardMode.NONE
                 self._ls.set_keyboard_mode(self, modo)
             except Exception as e:
                 log.debug("keyboard mode: %s", e)
@@ -630,7 +646,7 @@ class WidgetDesktop(Gtk.Window):
         self._pos_y = y
         if self._ls:
             self._ls.set_margin(self, self._ls.Edge.LEFT, max(0, x))
-            self._ls.set_margin(self, self._ls.Edge.TOP,  max(0, y))
+            self._ls.set_margin(self, self._ls.Edge.TOP, max(0, y))
             self.queue_resize()
         else:
             self.move(x, y)
@@ -686,17 +702,17 @@ class WidgetDesktop(Gtk.Window):
         pagina = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
         # Relógio
-        self.lbl_hora    = self._rotulo("hora",         "00", Gtk.Align.START)
-        self.lbl_minuto  = self._rotulo("minuto",       "00", Gtk.Align.START)
-        self.lbl_diasem  = self._rotulo("diaSemana",    "",   Gtk.Align.START)
-        self.lbl_data    = self._rotulo("dataCompleta", "",   Gtk.Align.START)
+        self.lbl_hora = self._rotulo("hora", "00", Gtk.Align.START)
+        self.lbl_minuto = self._rotulo("minuto", "00", Gtk.Align.START)
+        self.lbl_diasem = self._rotulo("diaSemana", "", Gtk.Align.START)
+        self.lbl_data = self._rotulo("dataCompleta", "", Gtk.Align.START)
 
         caixa_clock = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         for w in (self.lbl_hora, self.lbl_minuto, self.lbl_diasem, self.lbl_data):
             caixa_clock.pack_start(w, False, False, 0)
 
         caixa_relogio = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        caixa_relogio.pack_start(caixa_clock,                  True,  True,  0)
+        caixa_relogio.pack_start(caixa_clock, True, True, 0)
         caixa_relogio.pack_start(self._construir_painel_dir(), False, False, 0)
         pagina.pack_start(caixa_relogio, False, False, 0)
 
@@ -717,9 +733,9 @@ class WidgetDesktop(Gtk.Window):
         linha_temp.pack_start(self.lbl_temperatura, False, False, 0)
         caixa_clima.pack_start(linha_temp, False, False, 0)
 
-        self.lbl_cidade    = self._rotulo("cidadeClima",    "--",               Gtk.Align.START)
+        self.lbl_cidade = self._rotulo("cidadeClima", "--", Gtk.Align.START)
         self.lbl_descricao = self._rotulo("descricaoClima", t("seeking_weather"), Gtk.Align.START)
-        self.lbl_detalhe   = self._rotulo("detalheClima",   "",                 Gtk.Align.START)
+        self.lbl_detalhe = self._rotulo("detalheClima", "", Gtk.Align.START)
         for w in (self.lbl_cidade, self.lbl_descricao, self.lbl_detalhe):
             caixa_clima.pack_start(w, False, False, 0)
 
@@ -772,9 +788,9 @@ class WidgetDesktop(Gtk.Window):
 
         caixa_spotify.pack_start(linha_ctrl, False, False, 8)
 
-        self.lbl_titulo     = self._rotulo("tituloMusica",  "", Gtk.Align.START, reticencias=True)
-        self.lbl_artista    = self._rotulo("artistaMusica", "", Gtk.Align.START, reticencias=True)
-        self.lbl_album      = self._rotulo("albumMusica",   "", Gtk.Align.START, reticencias=True)
+        self.lbl_titulo = self._rotulo("tituloMusica", "", Gtk.Align.START, reticencias=True)
+        self.lbl_artista = self._rotulo("artistaMusica", "", Gtk.Align.START, reticencias=True)
+        self.lbl_album = self._rotulo("albumMusica", "", Gtk.Align.START, reticencias=True)
         self.lbl_sem_musica = self._rotulo("semMusica", t("no_spotify"), Gtk.Align.START)
 
         caixa_info = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -784,10 +800,10 @@ class WidgetDesktop(Gtk.Window):
         self.espectro_area = _EspectroBarras()
 
         linha_musica = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        linha_musica.pack_start(caixa_info,         True,  True,  0)
+        linha_musica.pack_start(caixa_info, True, True, 0)
         linha_musica.pack_start(self.espectro_area, False, False, 0)
 
-        caixa_spotify.pack_start(linha_musica,       False, False, 0)
+        caixa_spotify.pack_start(linha_musica, False, False, 0)
         caixa_spotify.pack_start(self.lbl_sem_musica, False, False, 0)
 
         pagina.pack_start(caixa_spotify, False, False, 0)
@@ -925,14 +941,14 @@ class WidgetDesktop(Gtk.Window):
 
         caixa_blocos = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         self.chk_calendario = Gtk.CheckButton(label=t("block_calendar"))
-        self.chk_spotify    = Gtk.CheckButton(label=t("block_spotify"))
-        self.chk_espectro   = Gtk.CheckButton(label=t("block_spectrum"))
-        self.chk_previsao   = Gtk.CheckButton(label=t("block_forecast"))
+        self.chk_spotify = Gtk.CheckButton(label=t("block_spotify"))
+        self.chk_espectro = Gtk.CheckButton(label=t("block_spectrum"))
+        self.chk_previsao = Gtk.CheckButton(label=t("block_forecast"))
         for chk, atual in (
             (self.chk_calendario, MOSTRAR_CALENDARIO),
-            (self.chk_spotify,    MOSTRAR_SPOTIFY),
-            (self.chk_espectro,   MOSTRAR_ESPECTRO),
-            (self.chk_previsao,   MOSTRAR_PREVISAO),
+            (self.chk_spotify, MOSTRAR_SPOTIFY),
+            (self.chk_espectro, MOSTRAR_ESPECTRO),
+            (self.chk_previsao, MOSTRAR_PREVISAO),
         ):
             chk.set_active(bool(atual))
             chk.get_style_context().add_class("checkConfig")
@@ -973,7 +989,8 @@ class WidgetDesktop(Gtk.Window):
         self.lbl_tamanho = self._rotulo("labelConfig", t("widget_size"), Gtk.Align.START)
         conteudo.pack_start(self.lbl_tamanho, False, False, 0)
         self.scale_tamanho = Gtk.Scale.new_with_range(
-            Gtk.Orientation.HORIZONTAL, _ESCALA_MIN, _ESCALA_MAX, 0.05)
+            Gtk.Orientation.HORIZONTAL, _ESCALA_MIN, _ESCALA_MAX, 0.05
+        )
         self.scale_tamanho.set_value(float(_escala_f()))
         self.scale_tamanho.set_draw_value(True)
         self.scale_tamanho.set_value_pos(Gtk.PositionType.RIGHT)
@@ -1178,9 +1195,9 @@ class WidgetDesktop(Gtk.Window):
             self._carregar_cores_ui()
             for chk, atual in (
                 (self.chk_calendario, MOSTRAR_CALENDARIO),
-                (self.chk_spotify,    MOSTRAR_SPOTIFY),
-                (self.chk_espectro,   MOSTRAR_ESPECTRO),
-                (self.chk_previsao,   MOSTRAR_PREVISAO),
+                (self.chk_spotify, MOSTRAR_SPOTIFY),
+                (self.chk_espectro, MOSTRAR_ESPECTRO),
+                (self.chk_previsao, MOSTRAR_PREVISAO),
             ):
                 chk.set_active(bool(atual))
             if hasattr(self, "chk_chuva"):
@@ -1233,8 +1250,7 @@ class WidgetDesktop(Gtk.Window):
         # Confirma que o texto ainda é o atual
         if self.entry_cidade.get_text().strip() != texto:
             return False
-        threading.Thread(
-            target=self._bg_sugestoes_cidade, args=(texto,), daemon=True).start()
+        threading.Thread(target=self._bg_sugestoes_cidade, args=(texto,), daemon=True).start()
         return False
 
     def _bg_sugestoes_cidade(self, texto):
@@ -1264,6 +1280,7 @@ class WidgetDesktop(Gtk.Window):
         pasta = Path(__file__).parent / "config"
         try:
             from gi.repository import Gio
+
             Gio.AppInfo.launch_default_for_uri(pasta.as_uri(), None)
         except Exception:
             os.system(f'xdg-open "{pasta}" >/dev/null 2>&1 &')
@@ -1303,6 +1320,7 @@ class WidgetDesktop(Gtk.Window):
 
     def _aplicar_idioma(self):
         """Atualiza textos visíveis sem reconstruir a janela."""
+
         def _set(w, texto, setter="set_text"):
             if w is None:
                 return
@@ -1390,7 +1408,9 @@ class WidgetDesktop(Gtk.Window):
                 Path(__file__).parent / "config" / "personalizar.py",
                 {
                     "CIDADE": cidade,
-                    "IDIOMA": "en" if getattr(self, "_radio_en", None) and self._radio_en.get_active() else "pt",
+                    "IDIOMA": "en"
+                    if getattr(self, "_radio_en", None) and self._radio_en.get_active()
+                    else "pt",
                     "UNIDADE_TEMPERATURA": unidade,
                     "MOSTRAR_CALENDARIO": self.chk_calendario.get_active(),
                     "MOSTRAR_SPOTIFY": self.chk_spotify.get_active(),
@@ -1398,8 +1418,7 @@ class WidgetDesktop(Gtk.Window):
                     "MOSTRAR_PREVISAO": self.chk_previsao.get_active(),
                     "NOTIFICAR_CHUVA_FORTE": self.chk_chuva.get_active(),
                     "ADAPTAR_WALLPAPER_AUTO": (
-                        self.chk_wall_auto.get_active()
-                        if hasattr(self, "chk_wall_auto") else False
+                        self.chk_wall_auto.get_active() if hasattr(self, "chk_wall_auto") else False
                     ),
                 },
             )
@@ -1456,6 +1475,7 @@ class WidgetDesktop(Gtk.Window):
         import config.personalizar
         import config.themes
         import css
+
         try:
             importlib.reload(config.colors)
             importlib.reload(config.personalizar)
@@ -1486,8 +1506,7 @@ class WidgetDesktop(Gtk.Window):
         if codigo is not None:
             self._atualizar_icone_clima(codigo)
         if self._url_capa_atual:
-            threading.Thread(
-                target=self._bg_capa, args=(self._url_capa_atual,), daemon=True).start()
+            threading.Thread(target=self._bg_capa, args=(self._url_capa_atual,), daemon=True).start()
         mod_clima.limpar_cache_localizacao()
         threading.Thread(target=self._bg_clima, daemon=True).start()
         self._watch_mtimes = self._mtime_arquivos()
@@ -1542,8 +1561,8 @@ class WidgetDesktop(Gtk.Window):
             return
         try:
             from weather_icons import renderizar_nota
-            self.img_nota_spotify.set_from_pixbuf(
-                renderizar_nota(tamanho=_px(16), cor=COR_DESTAQUE))
+
+            self.img_nota_spotify.set_from_pixbuf(renderizar_nota(tamanho=_px(16), cor=COR_DESTAQUE))
         except Exception as e:
             log.debug("nota spotify: %s", e)
 
@@ -1582,7 +1601,7 @@ class WidgetDesktop(Gtk.Window):
             self._cal_grid.remove(child)
 
         agora = datetime.datetime.now()
-        hoje  = agora.day
+        hoje = agora.day
 
         for col in range(7):
             lbl = Gtk.Label(label=t(f"cal_{col}"))
@@ -1619,9 +1638,7 @@ class WidgetDesktop(Gtk.Window):
 
     def _ignorar_scroll_scale(self, scale, passar_para_config=False):
         """Scroll do mouse não mexe no valor da barra."""
-        scale.add_events(
-            Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK
-        )
+        scale.add_events(Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
         scale.connect("scroll-event", self._on_scale_scroll, passar_para_config)
 
     def _on_scale_scroll(self, _scale, event, passar_para_config=False):
@@ -1640,10 +1657,12 @@ class WidgetDesktop(Gtk.Window):
                     elif direction == Gdk.ScrollDirection.SMOOTH:
                         delta = float(event.delta_y) * passo
                     if delta:
-                        adj.set_value(max(
-                            adj.get_lower(),
-                            min(adj.get_upper() - adj.get_page_size(), adj.get_value() + delta),
-                        ))
+                        adj.set_value(
+                            max(
+                                adj.get_lower(),
+                                min(adj.get_upper() - adj.get_page_size(), adj.get_value() + delta),
+                            )
+                        )
         return True
 
     def _eh_controle_interativo(self, widget) -> bool:
@@ -1654,8 +1673,17 @@ class WidgetDesktop(Gtk.Window):
                 return True
             if isinstance(
                 w,
-                (Gtk.Button, Gtk.Entry, Gtk.RadioButton, Gtk.CheckButton, Gtk.ColorButton,
-                 Gtk.Scale, Gtk.SpinButton, _BotaoMedia, _BotaoEngrenagem),
+                (
+                    Gtk.Button,
+                    Gtk.Entry,
+                    Gtk.RadioButton,
+                    Gtk.CheckButton,
+                    Gtk.ColorButton,
+                    Gtk.Scale,
+                    Gtk.SpinButton,
+                    _BotaoMedia,
+                    _BotaoEngrenagem,
+                ),
             ):
                 return True
             w = w.get_parent()
@@ -1695,8 +1723,7 @@ class WidgetDesktop(Gtk.Window):
         # X11: arrasto nativo do compositor (confiável no COSMIC/XWayland)
         if not self._ls:
             try:
-                self.begin_move_drag(
-                    event.button, int(event.x_root), int(event.y_root), event.time)
+                self.begin_move_drag(event.button, int(event.x_root), int(event.y_root), event.time)
                 self._pos_manual = True
                 return True
             except Exception as e:
@@ -1966,10 +1993,9 @@ class WidgetDesktop(Gtk.Window):
         self.lbl_hora.set_text(agora.strftime("%H"))
         self.lbl_minuto.set_text(agora.strftime("%M"))
         self.lbl_diasem.set_text(t(f"weekday_{agora.weekday()}").upper())
-        self.lbl_data.set_text(
-            f"{agora.day:02d} / {t(f'month_{agora.month}').upper()} / {agora.year}")
+        self.lbl_data.set_text(f"{agora.day:02d} / {t(f'month_{agora.month}').upper()} / {agora.year}")
 
-        seg  = agora.hour * 3600 + agora.minute * 60 + agora.second
+        seg = agora.hour * 3600 + agora.minute * 60 + agora.second
         prog = seg / 86400
         self.lbl_prog_pct.set_text(f"{int(prog * 100)}%")
         self.barra_dia.set_fraction(prog)
@@ -1991,6 +2017,7 @@ class WidgetDesktop(Gtk.Window):
         try:
             if codigo is None:
                 from weather_icons import SOL, renderizar
+
                 pb = renderizar(SOL, tamanho=_px(36), cor=COR_TEXTO)
             else:
                 pb = mod_clima.icone_pixbuf(int(codigo), tamanho=_px(36), cor=COR_TEXTO)
@@ -2007,7 +2034,9 @@ class WidgetDesktop(Gtk.Window):
                 try:
                     img.set_from_pixbuf(
                         mod_clima.icone_pixbuf(
-                            int(d.get("codigo", 113)), tamanho=_px(20), cor=COR_TEXTO_SECUNDARIO))
+                            int(d.get("codigo", 113)), tamanho=_px(20), cor=COR_TEXTO_SECUNDARIO
+                        )
+                    )
                 except Exception as e:
                     log.debug("ícone previsão: %s", e)
                 lbl_temp.set_text(f"{d.get('max_c', '--')}° / {d.get('min_c', '--')}°")
@@ -2030,9 +2059,7 @@ class WidgetDesktop(Gtk.Window):
             self.lbl_temperatura.set_text(f"  {temp}{unidade}")
             self.lbl_cidade.set_text(dados["cidade"])
             self.lbl_descricao.set_text(dados["descricao"])
-            self.lbl_detalhe.set_text(
-                t("wind_hum", vento=dados["vento_ms"], umidade=dados["umidade"])
-            )
+            self.lbl_detalhe.set_text(t("wind_hum", vento=dados["vento_ms"], umidade=dados["umidade"]))
             self._atualizar_previsao(dados.get("previsao") or [])
             if NOTIFICAR_CHUVA_FORTE and not dados.get("cache"):
                 try:
@@ -2082,8 +2109,7 @@ class WidgetDesktop(Gtk.Window):
         if self._volume_syncing:
             return
         vol = scale.get_value() / 100.0
-        threading.Thread(
-            target=mod_spotify.definir_volume, args=(vol,), daemon=True).start()
+        threading.Thread(target=mod_spotify.definir_volume, args=(vol,), daemon=True).start()
 
     def _aplicar_spotify(self, dados):
         tocando = dados and dados["status"] in ("Playing", "Running")
@@ -2101,12 +2127,10 @@ class WidgetDesktop(Gtk.Window):
                 self._volume_syncing = False
         if dados:
             self.btn_spotify_play.set_tipo("pause" if tocando else "play")
-            self.btn_spotify_play.set_tooltip_text(
-                t("pause") if tocando else t("play"))
+            self.btn_spotify_play.set_tooltip_text(t("pause") if tocando else t("play"))
 
         self.lbl_sem_musica.set_visible(not spotify_aberto)
-        self.lbl_cabecalho_spotify.set_text(
-            (t("paused") if pausado else t("playing")) if dados else "")
+        self.lbl_cabecalho_spotify.set_text((t("paused") if pausado else t("playing")) if dados else "")
 
         if tocando or pausado:
             prefixo = PREFIXO_PAUSADO if pausado else ""

@@ -12,6 +12,7 @@ def _obj_mpris():
     """Acha um player MPRIS2 ativo, priorizando o que está tocando no momento."""
     try:
         import dbus
+
         bus = dbus.SessionBus()
         nomes = [n for n in bus.list_names() if n.startswith("org.mpris.MediaPlayer2.")]
         if not nomes:
@@ -36,6 +37,7 @@ def _props():
         return None, None
     try:
         import dbus
+
         return obj, dbus.Interface(obj, "org.freedesktop.DBus.Properties")
     except Exception:
         return None, None
@@ -44,12 +46,14 @@ def _props():
 def comando(metodo: str) -> bool:
     if sys.platform == "win32":
         from win.media import comando as fn
+
         return fn(metodo)
     obj = _obj_mpris()
     if not obj:
         return False
     try:
         import dbus
+
         getattr(dbus.Interface(obj, "org.mpris.MediaPlayer2.Player"), metodo)()
         return True
     except Exception as e:
@@ -61,12 +65,14 @@ def definir_volume(valor: float) -> bool:
     """Define volume (0.0–1.0). Linux = MPRIS; Windows = sessão de áudio do Spotify."""
     if sys.platform == "win32":
         from win.media import definir_volume as fn
+
         return fn(valor)
     _obj, props = _props()
     if not props:
         return False
     try:
         import dbus
+
         v = max(0.0, min(1.0, float(valor)))
         props.Set("org.mpris.MediaPlayer2.Player", "Volume", dbus.Double(v))
         return True
@@ -79,11 +85,13 @@ def abrir() -> bool:
     """Traz o Spotify pra frente ou abre o app."""
     if sys.platform == "win32":
         from win.media import abrir as fn
+
         return fn()
     obj = _obj_mpris()
     if obj:
         try:
             import dbus
+
             dbus.Interface(obj, "org.mpris.MediaPlayer2").Raise()
             return True
         except Exception:
@@ -91,7 +99,8 @@ def abrir() -> bool:
     try:
         subprocess.Popen(
             ["xdg-open", "spotify:"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
         return True
     except Exception as e:
@@ -102,6 +111,7 @@ def abrir() -> bool:
 def buscar_faixa() -> dict | None:
     if sys.platform == "win32":
         from win.media import buscar_faixa as fn
+
         return fn()
     obj, props = _props()
     if not obj or not props:
@@ -128,6 +138,7 @@ def buscar_faixa() -> dict | None:
 
 def carregar_capa(url: str, tamanho: int):
     from gi.repository import GdkPixbuf
+
     try:
         if url.startswith("file://"):
             return GdkPixbuf.Pixbuf.new_from_file_at_scale(url[7:], tamanho, tamanho, True)

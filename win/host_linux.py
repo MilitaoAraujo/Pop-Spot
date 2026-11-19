@@ -69,6 +69,7 @@ class HostLinux(Gtk.Window):
         try:
             gi.require_version("GtkLayerShell", "0.1")
             from gi.repository import GtkLayerShell
+
             self._ls = GtkLayerShell
             GtkLayerShell.init_for_window(self)
             if hasattr(GtkLayerShell, "set_namespace"):
@@ -136,6 +137,7 @@ class HostLinux(Gtk.Window):
 
     def _tick(self):
         from PySide6.QtWidgets import QApplication
+
         app = QApplication.instance()
         if app is not None:
             app.processEvents()
@@ -188,6 +190,7 @@ class HostLinux(Gtk.Window):
             return
         try:
             import cairo
+
             region = cairo.Region(cairo.RectangleInt(0, 0, int(w), int(h)))
             gdk_win.input_shape_combine_region(region, 0, 0)
         except Exception:
@@ -196,6 +199,7 @@ class HostLinux(Gtk.Window):
     def _aplicar_superficie(self, img, scale: int) -> bool:
         try:
             import cairo
+
             self._cairo_data = bytearray(img.constBits())
             surf = cairo.ImageSurface.create_for_data(
                 self._cairo_data,
@@ -213,6 +217,7 @@ class HostLinux(Gtk.Window):
 
     def _aplicar_pixbuf(self, img, w: int, h: int, scale: int) -> None:
         from PySide6.QtGui import QImage
+
         rgba = img.convertToFormat(QImage.Format.Format_RGBA8888)
         self._buf = bytes(rgba.constBits())
         pb = GdkPixbuf.Pixbuf.new_from_data(
@@ -232,14 +237,9 @@ class HostLinux(Gtk.Window):
         aberto = self._qt._stack.currentIndex() == 1
         if self._ls is not None:
             try:
-                camada = (
-                    self._ls.Layer.TOP if aberto else self._ls.Layer.BOTTOM
-                )
+                camada = self._ls.Layer.TOP if aberto else self._ls.Layer.BOTTOM
                 self._ls.set_layer(self, camada)
-                modo = (
-                    self._ls.KeyboardMode.EXCLUSIVE if aberto
-                    else self._ls.KeyboardMode.NONE
-                )
+                modo = self._ls.KeyboardMode.EXCLUSIVE if aberto else self._ls.KeyboardMode.NONE
                 self._ls.set_keyboard_mode(self, modo)
             except Exception:
                 pass
@@ -276,6 +276,7 @@ class HostLinux(Gtk.Window):
         if edit is None:
             return
         from PySide6.QtCore import Qt as QtCore
+
         try:
             edit.setProperty("hostFocus", True)
             edit.style().unpolish(edit)
@@ -288,6 +289,7 @@ class HostLinux(Gtk.Window):
     def _css_provider_edits(self):
         from config import COR_DESTAQUE, COR_SEPARADOR, COR_SUPERFICIE, COR_TEXTO
         from win.scale import px
+
         sig = (COR_SUPERFICIE, COR_TEXTO, COR_SEPARADOR, COR_DESTAQUE, px(8))
         if self._css_edits is not None and self._css_edits_sig == sig:
             return self._css_edits
@@ -317,6 +319,7 @@ class HostLinux(Gtk.Window):
     def _rect_edit(self, w):
         from PySide6.QtCore import QPoint, QRect, QSize
         from PySide6.QtWidgets import QAbstractScrollArea
+
         canto = w.mapTo(self._qt, QPoint(0, 0))
         sz = w.size()
         if sz.width() < 8 or sz.height() < 8:
@@ -338,9 +341,7 @@ class HostLinux(Gtk.Window):
         ge.set_has_frame(True)
         ge.get_style_context().add_class("popspot-edit")
         ge.set_can_focus(True)
-        ge.get_style_context().add_provider(
-            self._css_provider_edits(), Gtk.STYLE_PROVIDER_PRIORITY_USER
-        )
+        ge.get_style_context().add_provider(self._css_provider_edits(), Gtk.STYLE_PROVIDER_PRIORITY_USER)
         ge._pop_css_sig = self._css_edits_sig
         if qedit.objectName() == "entryHex":
             ge.set_max_length(7)
@@ -379,6 +380,7 @@ class HostLinux(Gtk.Window):
 
     def _sync_edits_gtk(self):
         from PySide6.QtWidgets import QLineEdit
+
         aberto = self._qt._stack.currentIndex() == 1
         if not aberto:
             self._esconder_edits_gtk()
@@ -442,6 +444,7 @@ class HostLinux(Gtk.Window):
     def _rect_hit(self, w):
         from PySide6.QtCore import QPoint, QRect
         from PySide6.QtWidgets import QAbstractScrollArea
+
         r = QRect(w.mapTo(self._qt, QPoint(0, 0)), w.size())
         p = w.parentWidget()
         while p is not None and p is not self._qt:
@@ -462,6 +465,7 @@ class HostLinux(Gtk.Window):
             QScrollBar,
             QSlider,
         )
+
         pt = QPoint(int(x), int(y))
         hits = []
         for cls, extra in (
@@ -486,6 +490,7 @@ class HostLinux(Gtk.Window):
 
     def _slider_valor(self, slider, x: int, y: int) -> None:
         from PySide6.QtCore import QPoint
+
         pt = slider.mapFrom(self._qt, QPoint(int(x), int(y)))
         pad = 8
         span = max(1, slider.width() - 2 * pad)
@@ -499,6 +504,7 @@ class HostLinux(Gtk.Window):
         from PySide6.QtCore import QPoint, QPointF, Qt
         from PySide6.QtGui import QMouseEvent
         from PySide6.QtWidgets import QApplication
+
         pt = alvo.mapFrom(self._qt, QPoint(int(x), int(y)))
         btn_n = int(getattr(event, "button", 0) or 0)
         if btn_n == 0 and (event.state & Gdk.ModifierType.BUTTON1_MASK):
@@ -582,6 +588,7 @@ class HostLinux(Gtk.Window):
     def _on_motion_ok(self, event):
         from PySide6.QtCore import QEvent
         from PySide6.QtWidgets import QSlider
+
         if self._qt_grab is not None and (event.state & Gdk.ModifierType.BUTTON1_MASK):
             x, y = self._map_xy(event)
             if isinstance(self._qt_grab, QSlider):
@@ -611,6 +618,7 @@ class HostLinux(Gtk.Window):
     def _on_release_ok(self, event):
         from PySide6.QtCore import QEvent
         from PySide6.QtWidgets import QSlider
+
         if event.button == 1 and self._qt_grab is not None:
             x, y = self._map_xy(event)
             if isinstance(self._qt_grab, QSlider):
@@ -629,6 +637,7 @@ class HostLinux(Gtk.Window):
 
     def _on_scroll(self, _w, event):
         from PySide6.QtWidgets import QScrollArea
+
         dy = 0.0
         if event.direction == Gdk.ScrollDirection.SMOOTH:
             dy = event.delta_y
@@ -647,6 +656,7 @@ class HostLinux(Gtk.Window):
     def _on_key(self, _w, event):
         from gi.repository import Gdk as GdkK
         from PySide6.QtWidgets import QApplication, QLineEdit
+
         if isinstance(self.get_focus(), Gtk.Entry):
             return False
         foco = self._qt_edit or QApplication.focusWidget()
@@ -692,9 +702,7 @@ class HostLinux(Gtk.Window):
         if dlg.run() == Gtk.ResponseType.OK:
             r = dlg.get_rgba()
             hexc = (
-                f"#{int(round(r.red * 255)):02x}"
-                f"{int(round(r.green * 255)):02x}"
-                f"{int(round(r.blue * 255)):02x}"
+                f"#{int(round(r.red * 255)):02x}{int(round(r.green * 255)):02x}{int(round(r.blue * 255)):02x}"
             )
             self._qt._pagina_cfg.definir_cor(nome, hexc)
         dlg.destroy()
@@ -781,6 +789,7 @@ class HostLinux(Gtk.Window):
 
     def _sair(self):
         from PySide6.QtWidgets import QApplication
+
         try:
             self._qt._espectro.stop()
         except Exception:

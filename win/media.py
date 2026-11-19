@@ -27,6 +27,7 @@ def _mods():
         from winrt.windows.media.control import (
             GlobalSystemMediaTransportControlsSessionPlaybackStatus as St,
         )
+
         return Mgr, St
     except ImportError:
         pass
@@ -37,6 +38,7 @@ def _mods():
         from winsdk.windows.media.control import (
             GlobalSystemMediaTransportControlsSessionPlaybackStatus as St,
         )
+
         return Mgr, St
     except ImportError:
         return None, None
@@ -48,7 +50,7 @@ def _run(coro):
 
 def _nome_processo_sessao(sessao) -> str:
     """Nome (sem path/extensão) do app por trás da sessão, a partir do AUMID."""
-    aumid = (getattr(sessao, "source_app_user_model_id", None) or "")
+    aumid = getattr(sessao, "source_app_user_model_id", None) or ""
     base = aumid.replace("\\", "/").rsplit("/", 1)[-1]
     if base.lower().endswith(".exe"):
         base = base[:-4]
@@ -138,6 +140,7 @@ async def _buscar():
 def _com_init():
     try:
         import comtypes
+
         comtypes.CoInitialize()
     except Exception:
         pass

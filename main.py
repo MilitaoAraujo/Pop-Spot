@@ -22,6 +22,7 @@ def main():
         _main_gtk()
         return
     from win.main import main as win_main
+
     win_main()
 
 
@@ -29,6 +30,7 @@ def _main_gtk():
     import fcntl
 
     import gi
+
     gi.require_version("Gtk", "3.0")
     from gi.repository import Gtk
 
@@ -41,6 +43,7 @@ def _main_gtk():
     except BlockingIOError:
         try:
             from config.i18n import t
+
             print(t("already_running"), file=sys.stderr)
         except Exception:
             print("Pop Spot is already running.", file=sys.stderr)

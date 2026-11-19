@@ -41,24 +41,36 @@ def _nuvem(p: QPainter, cx, cy, s):
     path = QPainterPath()
     path.moveTo(cx - s * 0.72, cy + s * 0.18)
     path.cubicTo(
-        cx - s * 0.72, cy + s * 0.55,
-        cx + s * 0.72, cy + s * 0.55,
-        cx + s * 0.72, cy + s * 0.18,
+        cx - s * 0.72,
+        cy + s * 0.55,
+        cx + s * 0.72,
+        cy + s * 0.55,
+        cx + s * 0.72,
+        cy + s * 0.18,
     )
     path.cubicTo(
-        cx + s * 0.95, cy + s * 0.18,
-        cx + s * 0.95, cy - s * 0.22,
-        cx + s * 0.55, cy - s * 0.28,
+        cx + s * 0.95,
+        cy + s * 0.18,
+        cx + s * 0.95,
+        cy - s * 0.22,
+        cx + s * 0.55,
+        cy - s * 0.28,
     )
     path.cubicTo(
-        cx + s * 0.55, cy - s * 0.70,
-        cx - s * 0.20, cy - s * 0.70,
-        cx - s * 0.28, cy - s * 0.30,
+        cx + s * 0.55,
+        cy - s * 0.70,
+        cx - s * 0.20,
+        cy - s * 0.70,
+        cx - s * 0.28,
+        cy - s * 0.30,
     )
     path.cubicTo(
-        cx - s * 0.85, cy - s * 0.40,
-        cx - s * 0.95, cy + s * 0.05,
-        cx - s * 0.72, cy + s * 0.18,
+        cx - s * 0.85,
+        cy - s * 0.40,
+        cx - s * 0.95,
+        cy + s * 0.05,
+        cx - s * 0.72,
+        cy + s * 0.18,
     )
     path.closeSubpath()
     p.drawPath(path)
@@ -193,9 +205,12 @@ def pix_nota(tamanho: int, cor: str) -> QPixmap:
     path = QPainterPath()
     path.moveTo(x, y0)
     path.cubicTo(
-        x + size * 0.28, y0 + size * 0.05,
-        x + size * 0.28, y0 + size * 0.28,
-        x, y0 + size * 0.32,
+        x + size * 0.28,
+        y0 + size * 0.05,
+        x + size * 0.28,
+        y0 + size * 0.28,
+        x,
+        y0 + size * 0.32,
     )
     p.drawPath(path)
     p.end()

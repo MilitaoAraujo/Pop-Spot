@@ -95,8 +95,8 @@ Everything lives in `config/`. The gear UI writes the same files and applies liv
 
 ```python
 # config/personalizar.py
-CIDADE = ""                 # empty = auto; or "Recife", "-7.23,-35.88"
-IDIOMA = "en"               # "pt" or "en"
+CIDADE = ""  # empty = auto; or "Recife", "-7.23,-35.88"
+IDIOMA = "en"  # "pt" or "en"
 MOSTRAR_CALENDARIO = True
 MOSTRAR_SPOTIFY = True
 MOSTRAR_ESPECTRO = True
@@ -116,8 +116,8 @@ Quick themes in settings: Purple, Blue, Mono, Green. **Match wallpaper** uses th
 
 ```python
 # config/layout.py
-LADO = "direita"   # or "esquerda"
-ESCALA = 1.00      # 0.80–1.30 (also: settings → widget size)
+LADO = "direita"  # or "esquerda"
+ESCALA = 1.00  # 0.80–1.30 (also: settings → widget size)
 ```
 
 Drag position: `config/.widget_pos` (right-click → Reset position).
@@ -213,8 +213,8 @@ Tudo em `config/`. A engrenagem grava os mesmos arquivos e aplica na hora.
 
 ```python
 # config/personalizar.py
-CIDADE = ""                 # vazia = automático; ou "Recife", "-7.23,-35.88"
-IDIOMA = "pt"               # "pt" ou "en"
+CIDADE = ""  # vazia = automático; ou "Recife", "-7.23,-35.88"
+IDIOMA = "pt"  # "pt" ou "en"
 MOSTRAR_CALENDARIO = True
 MOSTRAR_SPOTIFY = True
 MOSTRAR_ESPECTRO = True

@@ -14,19 +14,19 @@ import threading
 log = logging.getLogger("widget.spectrum")
 
 N_BARS = 16
-RATE   = 22050
-CHUNK  = 1024
-DECAY  = 0.55
+RATE = 22050
+CHUNK = 1024
+DECAY = 0.55
 
 
 class AudioSpectrum:
     def __init__(self):
-        self._bars       = [0.0] * N_BARS
-        self._lock       = threading.Lock()
-        self._proc       = None
-        self._running    = False
+        self._bars = [0.0] * N_BARS
+        self._lock = threading.Lock()
+        self._proc = None
+        self._running = False
         self._start_lock = threading.Lock()
-        self._np         = None
+        self._np = None
 
     def start(self):
         with self._start_lock:
@@ -59,6 +59,7 @@ class AudioSpectrum:
     def _loop(self):
         try:
             import numpy as np
+
             self._np = np
         except ImportError:
             self._np = None
@@ -78,7 +79,8 @@ class AudioSpectrum:
                     "--channels=1",
                     "--format=s16le",
                     "--latency-msec=80",
-                    "-d", "@DEFAULT_MONITOR@",
+                    "-d",
+                    "@DEFAULT_MONITOR@",
                 ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
@@ -165,7 +167,7 @@ class AudioSpectrum:
             lo = int(n * (i / N_BARS) ** 2.0)
             hi = int(n * ((i + 1) / N_BARS) ** 2.0)
             lo, hi = max(lo, 0), min(hi, n - 1)
-            val = float(np.mean(fft[lo:hi + 1])) if hi > lo else float(fft[lo])
+            val = float(np.mean(fft[lo : hi + 1])) if hi > lo else float(fft[lo])
             bars.append(val)
         return bars
 

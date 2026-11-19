@@ -14,6 +14,7 @@ log = logging.getLogger("popspot.win.native")
 def _tem_libxcb_cursor() -> bool:
     try:
         import ctypes.util
+
         if ctypes.util.find_library("xcb-cursor"):
             return True
     except Exception:
@@ -108,29 +109,55 @@ def _aplicar_x11(xid: int) -> None:
     sid = hex(xid) if xid else "0x0"
     cmds = (
         [
-            "xprop", "-id", sid, "-f", "_NET_WM_WINDOW_TYPE", "32a", "-set",
-            "_NET_WM_WINDOW_TYPE", "_NET_WM_WINDOW_TYPE_UTILITY",
+            "xprop",
+            "-id",
+            sid,
+            "-f",
+            "_NET_WM_WINDOW_TYPE",
+            "32a",
+            "-set",
+            "_NET_WM_WINDOW_TYPE",
+            "_NET_WM_WINDOW_TYPE_UTILITY",
         ],
         [
-            "xprop", "-id", sid, "-f", "_NET_WM_STATE", "32a", "-set",
+            "xprop",
+            "-id",
+            sid,
+            "-f",
             "_NET_WM_STATE",
-            "_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER,"
-            "_NET_WM_STATE_BELOW,_NET_WM_STATE_STICKY",
+            "32a",
+            "-set",
+            "_NET_WM_STATE",
+            "_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER,_NET_WM_STATE_BELOW,_NET_WM_STATE_STICKY",
         ],
         [
-            "xprop", "-id", sid, "-f", "_MOTIF_WM_HINTS", "32c", "-set",
-            "_MOTIF_WM_HINTS", "2, 0, 0, 0, 0",
+            "xprop",
+            "-id",
+            sid,
+            "-f",
+            "_MOTIF_WM_HINTS",
+            "32c",
+            "-set",
+            "_MOTIF_WM_HINTS",
+            "2, 0, 0, 0, 0",
         ],
         [
-            "xprop", "-id", sid, "-remove", "_NET_WM_STRUT",
-            "-remove", "_NET_WM_STRUT_PARTIAL",
+            "xprop",
+            "-id",
+            sid,
+            "-remove",
+            "_NET_WM_STRUT",
+            "-remove",
+            "_NET_WM_STRUT_PARTIAL",
         ],
     )
     for cmd in cmds:
         try:
             subprocess.run(
-                cmd, check=False,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                cmd,
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
         except Exception as e:
             log.debug("xprop: %s", e)

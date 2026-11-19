@@ -24,4 +24,4 @@ UNIDADE_TEMPERATURA = "°C"
 NOTIFICAR_CHUVA_FORTE = True
 
 # Adaptar cores do widget ao wallpaper (COSMIC)
-ADAPTAR_WALLPAPER_AUTO = False
+ADAPTAR_WALLPAPER_AUTO = True

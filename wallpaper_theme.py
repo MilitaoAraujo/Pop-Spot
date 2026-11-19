@@ -27,10 +27,7 @@ def _localizar_windows() -> str | None:
         p = Path(buf.value)
         if p.is_file():
             return str(p)
-    trans = (
-        Path(os.environ.get("APPDATA", ""))
-        / "Microsoft" / "Windows" / "Themes" / "TranscodedWallpaper"
-    )
+    trans = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Themes" / "TranscodedWallpaper"
     if trans.is_file():
         return str(trans)
     return None
@@ -47,16 +44,10 @@ def localizar_wallpaper() -> str | None:
     candidatos: list[Path] = []
 
     # COSMIC: estado atual por monitor
-    candidatos.append(
-        home / ".local/state/cosmic/com.system76.CosmicBackground/v1/wallpapers"
-    )
+    candidatos.append(home / ".local/state/cosmic/com.system76.CosmicBackground/v1/wallpapers")
     # COSMIC: config padrão
-    candidatos.append(
-        Path("/usr/share/cosmic/com.system76.CosmicBackground/v1/all")
-    )
-    candidatos.append(
-        home / ".config/cosmic/com.system76.CosmicBackground/v1/all"
-    )
+    candidatos.append(Path("/usr/share/cosmic/com.system76.CosmicBackground/v1/all"))
+    candidatos.append(home / ".config/cosmic/com.system76.CosmicBackground/v1/all")
 
     for arq in candidatos:
         if not arq.is_file():
@@ -77,10 +68,16 @@ def localizar_wallpaper() -> str | None:
     # GNOME / legado
     try:
         import subprocess
-        out = subprocess.check_output(
-            ["gsettings", "get", "org.gnome.desktop.background", "picture-uri"],
-            text=True, stderr=subprocess.DEVNULL,
-        ).strip().strip("'\"")
+
+        out = (
+            subprocess.check_output(
+                ["gsettings", "get", "org.gnome.desktop.background", "picture-uri"],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
+            .strip()
+            .strip("'\"")
+        )
         if out.startswith("file://"):
             p = Path(out[7:])
             if p.is_file():
@@ -125,7 +122,8 @@ def pixels_de_qimage(img, lado: int) -> list[tuple[int, int, int]]:
 
     img = img.convertToFormat(QImage.Format.Format_RGB32)
     img = img.scaled(
-        lado, lado,
+        lado,
+        lado,
         Qt.AspectRatioMode.KeepAspectRatio,
         Qt.TransformationMode.SmoothTransformation,
     )
@@ -203,13 +201,19 @@ def _capturar_desktop_windows():
 
         class _BITMAPINFOHEADER(ctypes.Structure):
             _fields_ = [
-                ("biSize", ctypes.c_uint32), ("biWidth", ctypes.c_int32),
-                ("biHeight", ctypes.c_int32), ("biPlanes", ctypes.c_uint16),
-                ("biBitCount", ctypes.c_uint16), ("biCompression", ctypes.c_uint32),
-                ("biSizeImage", ctypes.c_uint32), ("biXPelsPerMeter", ctypes.c_int32),
-                ("biYPelsPerMeter", ctypes.c_int32), ("biClrUsed", ctypes.c_uint32),
+                ("biSize", ctypes.c_uint32),
+                ("biWidth", ctypes.c_int32),
+                ("biHeight", ctypes.c_int32),
+                ("biPlanes", ctypes.c_uint16),
+                ("biBitCount", ctypes.c_uint16),
+                ("biCompression", ctypes.c_uint32),
+                ("biSizeImage", ctypes.c_uint32),
+                ("biXPelsPerMeter", ctypes.c_int32),
+                ("biYPelsPerMeter", ctypes.c_int32),
+                ("biClrUsed", ctypes.c_uint32),
                 ("biClrImportant", ctypes.c_uint32),
             ]
+
         bmi = _BITMAPINFOHEADER()
         bmi.biSize = ctypes.sizeof(_BITMAPINFOHEADER)
         bmi.biWidth, bmi.biHeight, bmi.biPlanes, bmi.biBitCount = w, -h, 1, 32
@@ -278,6 +282,7 @@ def _amostrar_pil(caminho: str, lado: int) -> list[tuple[int, int, int]]:
 
 def _amostrar_pixbuf(caminho: str, lado: int = 64) -> list[tuple[int, int, int]]:
     import gi
+
     gi.require_version("GdkPixbuf", "2.0")
     from gi.repository import GdkPixbuf
 
@@ -472,8 +477,7 @@ def assinatura_wallpaper() -> tuple:
     candidatos.append(caminho_estado_cosmic())
     if sys.platform == "win32":
         candidatos.append(
-            Path(os.environ.get("APPDATA", ""))
-            / "Microsoft" / "Windows" / "Themes" / "TranscodedWallpaper"
+            Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Themes" / "TranscodedWallpaper"
         )
     mts: list[float | None] = []
     vistos: set[str] = set()

@@ -6,7 +6,7 @@ TAMANHO_CAPA = 170
 TAMANHO_FONTE_HORA = 68
 
 # Escala do widget (0.80–1.30). Ajusta largura, fontes, botões e ícones juntos.
-ESCALA = 1.00
+ESCALA = 1.05
 
 # Lado da tela: "direita" ou "esquerda" (quando POS_X/POS_Y = -1)
 LADO = "direita"

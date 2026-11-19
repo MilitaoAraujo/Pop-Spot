@@ -46,14 +46,17 @@ _configurar_logging()
 def _uma_instancia():
     from PySide6.QtCore import QLockFile, QStandardPaths
 
-    pasta = QStandardPaths.writableLocation(
-        QStandardPaths.StandardLocation.RuntimeLocation
-    ) or os.environ.get("TEMP") or "/tmp"
+    pasta = (
+        QStandardPaths.writableLocation(QStandardPaths.StandardLocation.RuntimeLocation)
+        or os.environ.get("TEMP")
+        or "/tmp"
+    )
     lock = QLockFile(str(Path(pasta) / "pop-spot.lock"))
     lock.setStaleLockTime(30_000)
     if not lock.tryLock(100):
         try:
             from config.i18n import t
+
             print(t("already_running"), file=sys.stderr)
         except Exception:
             print("Pop Spot is already running.", file=sys.stderr)
@@ -72,6 +75,7 @@ def main():
         app = QApplication(sys.argv)
         app.setApplicationName("Pop Spot")
         from win.host_linux import _usar_gi_do_sistema, run
+
         _usar_gi_do_sistema()
         run(app, _uma_instancia())
         return
@@ -83,9 +87,7 @@ def main():
 
     preparar_plataforma()
     try:
-        QApplication.setHighDpiScaleFactorRoundingPolicy(
-            Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
-        )
+        QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     except Exception:
         pass
     app = QApplication(sys.argv)

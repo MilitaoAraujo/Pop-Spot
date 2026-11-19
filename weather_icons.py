@@ -11,14 +11,14 @@ gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import GdkPixbuf
 
 # Tipos de ícone desenháveis
-SOL           = "sol"
-NUVEM         = "nuvem"
-SOL_NUVEM     = "sol_nuvem"
-CHUVA         = "chuva"
-SOL_CHUVA     = "sol_chuva"   # como no README: sol atrás da nuvem + chuva
-TEMPESTADE    = "tempestade"
-NEVE          = "neve"
-NEBLINA       = "neblina"
+SOL = "sol"
+NUVEM = "nuvem"
+SOL_NUVEM = "sol_nuvem"
+CHUVA = "chuva"
+SOL_CHUVA = "sol_chuva"  # como no README: sol atrás da nuvem + chuva
+TEMPESTADE = "tempestade"
+NEVE = "neve"
+NEBLINA = "neblina"
 
 
 def _hex_rgb(cor: str) -> tuple[float, float, float]:
@@ -41,7 +41,7 @@ def _surface_para_pixbuf(surface) -> GdkPixbuf.Pixbuf:
             i = row + x * 4
             o = (y * w + x) * 4
             b, g, r, a = src[i], src[i + 1], src[i + 2], src[i + 3]
-            rgba[o:o + 4] = bytes((r, g, b, a))
+            rgba[o : o + 4] = bytes((r, g, b, a))
     pb = GdkPixbuf.Pixbuf.new_from_data(
         bytes(rgba),
         GdkPixbuf.Colorspace.RGB,
@@ -56,7 +56,7 @@ def _surface_para_pixbuf(surface) -> GdkPixbuf.Pixbuf:
 
 def _stroke(cr, lw: float):
     cr.set_line_width(lw)
-    cr.set_line_cap(1)   # ROUND
+    cr.set_line_cap(1)  # ROUND
     cr.set_line_join(1)  # ROUND
 
 
@@ -83,27 +83,39 @@ def _desenhar_nuvem(cr, cx, cy, s):
     # base esquerda → direita
     cr.move_to(cx - s * 0.72, cy + s * 0.18)
     cr.curve_to(
-        cx - s * 0.72, cy + s * 0.55,
-        cx + s * 0.72, cy + s * 0.55,
-        cx + s * 0.72, cy + s * 0.18,
+        cx - s * 0.72,
+        cy + s * 0.55,
+        cx + s * 0.72,
+        cy + s * 0.55,
+        cx + s * 0.72,
+        cy + s * 0.18,
     )
     # lóbulo direito
     cr.curve_to(
-        cx + s * 0.95, cy + s * 0.18,
-        cx + s * 0.95, cy - s * 0.22,
-        cx + s * 0.55, cy - s * 0.28,
+        cx + s * 0.95,
+        cy + s * 0.18,
+        cx + s * 0.95,
+        cy - s * 0.22,
+        cx + s * 0.55,
+        cy - s * 0.28,
     )
     # lóbulo topo
     cr.curve_to(
-        cx + s * 0.55, cy - s * 0.70,
-        cx - s * 0.20, cy - s * 0.70,
-        cx - s * 0.28, cy - s * 0.30,
+        cx + s * 0.55,
+        cy - s * 0.70,
+        cx - s * 0.20,
+        cy - s * 0.70,
+        cx - s * 0.28,
+        cy - s * 0.30,
     )
     # lóbulo esquerdo
     cr.curve_to(
-        cx - s * 0.85, cy - s * 0.40,
-        cx - s * 0.95, cy + s * 0.05,
-        cx - s * 0.72, cy + s * 0.18,
+        cx - s * 0.85,
+        cy - s * 0.40,
+        cx - s * 0.95,
+        cy + s * 0.05,
+        cx - s * 0.72,
+        cy + s * 0.18,
     )
     cr.close_path()
     cr.stroke()
@@ -242,9 +254,12 @@ def renderizar_nota(tamanho: int = 16, cor: str = "#9b59b6") -> GdkPixbuf.Pixbuf
     # Bandeirinha
     cr.move_to(x, y0)
     cr.curve_to(
-        x + size * 0.28, y0 + size * 0.05,
-        x + size * 0.28, y0 + size * 0.28,
-        x, y0 + size * 0.32,
+        x + size * 0.28,
+        y0 + size * 0.05,
+        x + size * 0.28,
+        y0 + size * 0.28,
+        x,
+        y0 + size * 0.32,
     )
     cr.stroke()
     return _surface_para_pixbuf(surface)

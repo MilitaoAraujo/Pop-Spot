@@ -1,4 +1,4 @@
-# Integração com Spotify: Linux = D-Bus MPRIS2, Windows = SMTC
+# Integração com players de mídia: Linux = D-Bus MPRIS2 (qualquer player), Windows = SMTC
 import logging
 import subprocess
 import sys
@@ -9,12 +9,22 @@ log = logging.getLogger("widget.spotify")
 
 
 def _obj_mpris():
+    """Acha um player MPRIS2 ativo, priorizando o que está tocando no momento."""
     try:
         import dbus
         bus = dbus.SessionBus()
-        for name in bus.list_names():
-            if "spotify" in name.lower():
-                return bus.get_object(name, "/org/mpris/MediaPlayer2")
+        nomes = [n for n in bus.list_names() if n.startswith("org.mpris.MediaPlayer2.")]
+        if not nomes:
+            return None
+        objetos = [bus.get_object(n, "/org/mpris/MediaPlayer2") for n in nomes]
+        for obj in objetos:
+            try:
+                props = dbus.Interface(obj, "org.freedesktop.DBus.Properties")
+                if str(props.Get("org.mpris.MediaPlayer2.Player", "PlaybackStatus")) == "Playing":
+                    return obj
+            except Exception:
+                continue
+        return objetos[0]
     except Exception as e:
         log.debug("MPRIS: %s", e)
     return None

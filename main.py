@@ -27,9 +27,11 @@ def main():
 
 def _main_gtk():
     import fcntl
+
     import gi
     gi.require_version("Gtk", "3.0")
     from gi.repository import Gtk
+
     from window import WidgetDesktop
 
     runtime = Path(os.environ.get("XDG_RUNTIME_DIR") or "/tmp")

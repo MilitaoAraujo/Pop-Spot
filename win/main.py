@@ -77,6 +77,7 @@ def main():
         return
 
     from PySide6.QtCore import Qt
+
     from win.native import preparar_plataforma
     from win.window import WidgetWindows
 

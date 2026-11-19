@@ -1,0 +1,26 @@
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+exclude = [".venv", "build", "dist"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # linha longa: tratado pelo formatter, não é erro bloqueante
+    "E402",  # gi.require_version() precisa vir antes de "from gi.repository import ..."
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["config", "win"]
+
+[tool.ruff.lint.per-file-ignores]
+"config/__init__.py" = ["F403"]  # re-exporta tudo de propósito (facade do pacote config)
+
+[tool.ruff.format]
+quote-style = "double"

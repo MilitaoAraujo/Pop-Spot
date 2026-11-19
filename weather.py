@@ -182,7 +182,9 @@ def _traduzir(desc: str) -> str:
 
 def _coords_geoclue():
     try:
-        import dbus, time
+        import time
+
+        import dbus
         bus = dbus.SystemBus()
         mgr = dbus.Interface(
             bus.get_object("org.freedesktop.GeoClue2", "/org/freedesktop/GeoClue2/Manager"),
@@ -332,6 +334,7 @@ def _resolver_alvo():
 def _dias_semana_pt(iso_date: str) -> str:
     try:
         import datetime
+
         from config.i18n import t
         d = datetime.date.fromisoformat(iso_date[:10])
         return t(f"fc_{d.weekday()}")

@@ -23,10 +23,11 @@ def _usar_gi_do_sistema() -> None:
 
 _usar_gi_do_sistema()
 import gi
+
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 gi.require_version("GdkPixbuf", "2.0")
-from gi.repository import Gtk, Gdk, GLib, GdkPixbuf
+from gi.repository import Gdk, GdkPixbuf, GLib, Gtk
 
 from config import LADO, MARGEM_DIREITA, POS_X, POS_Y, VERSAO
 from config.i18n import t
@@ -285,7 +286,7 @@ class HostLinux(Gtk.Window):
             pass
 
     def _css_provider_edits(self):
-        from config import COR_SUPERFICIE, COR_TEXTO, COR_SEPARADOR, COR_DESTAQUE
+        from config import COR_DESTAQUE, COR_SEPARADOR, COR_SUPERFICIE, COR_TEXTO
         from win.scale import px
         sig = (COR_SUPERFICIE, COR_TEXTO, COR_SEPARADOR, COR_DESTAQUE, px(8))
         if self._css_edits is not None and self._css_edits_sig == sig:
@@ -454,7 +455,12 @@ class HostLinux(Gtk.Window):
     def _alvo_interativo(self, x: int, y: int):
         from PySide6.QtCore import QPoint
         from PySide6.QtWidgets import (
-            QAbstractButton, QAbstractSlider, QLineEdit, QListWidget, QScrollBar, QSlider,
+            QAbstractButton,
+            QAbstractSlider,
+            QLineEdit,
+            QListWidget,
+            QScrollBar,
+            QSlider,
         )
         pt = QPoint(int(x), int(y))
         hits = []
@@ -521,7 +527,7 @@ class HostLinux(Gtk.Window):
             return True
         if event.button != 1:
             return False
-        from PySide6.QtCore import QEvent, QPoint
+        from PySide6.QtCore import QPoint
         from PySide6.QtWidgets import QAbstractButton, QAbstractSlider, QLineEdit, QListWidget, QSlider
 
         x, y = self._map_xy(event)
@@ -639,8 +645,8 @@ class HostLinux(Gtk.Window):
         return True
 
     def _on_key(self, _w, event):
-        from PySide6.QtWidgets import QApplication, QLineEdit
         from gi.repository import Gdk as GdkK
+        from PySide6.QtWidgets import QApplication, QLineEdit
         if isinstance(self.get_focus(), Gtk.Entry):
             return False
         foco = self._qt_edit or QApplication.focusWidget()

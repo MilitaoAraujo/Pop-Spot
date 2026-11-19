@@ -1,37 +1,62 @@
 # Janela principal do widget — layout, config viva e loops de atualização
 import gi
+
 gi.require_version("Gtk", "3.0")
 gi.require_version("GdkPixbuf", "2.0")
-from gi.repository import Gtk, Gdk, GLib, Pango
-
-import threading
-import datetime
 import calendar
+import datetime
 import locale
 import logging
 import os
 import re
 import sys
+import threading
 from pathlib import Path
 
-from config import (
-    LARGURA, MARGEM_DIREITA, TAMANHO_CAPA, LADO, POS_X, POS_Y, ESCALA,
-    ATUALIZAR_CLIMA_SEG, ATUALIZAR_SPOTIFY_SEG, VERIFICAR_ARQUIVOS_SEG, VERSAO,
-    PREFIXO_PAUSADO,
-    ICONE_SPOTIFY_ANTERIOR, ICONE_SPOTIFY_PROXIMO,
-    ICONE_SPOTIFY_REPRODUZIR, ICONE_SPOTIFY_PAUSAR,
-    UNIDADE_TEMPERATURA, CIDADE,
-    COR_BASE, COR_SUPERFICIE, COR_TEXTO, COR_TEXTO_SECUNDARIO, COR_TEXTO_TERCIARIO,
-    COR_DESTAQUE, COR_BOTOES_SPOTIFY, OPACIDADE_FUNDO, PRESETS, RAIO_BORDA,
-    MOSTRAR_CALENDARIO, MOSTRAR_SPOTIFY, MOSTRAR_ESPECTRO, MOSTRAR_PREVISAO,
-    NOTIFICAR_CHUVA_FORTE, ADAPTAR_WALLPAPER_AUTO,
-)
-from css     import gerar_css
-from config.i18n import t, idioma, STRINGS
-import weather  as mod_clima
-import spotify  as mod_spotify
+from gi.repository import Gdk, GLib, Gtk, Pango
+
+import spotify as mod_spotify
 import wallpaper_theme as mod_wall
-from spectrum import AudioSpectrum, N_BARS
+import weather as mod_clima
+from config import (
+    ADAPTAR_WALLPAPER_AUTO,
+    ATUALIZAR_CLIMA_SEG,
+    ATUALIZAR_SPOTIFY_SEG,
+    CIDADE,
+    COR_BASE,
+    COR_BOTOES_SPOTIFY,
+    COR_DESTAQUE,
+    COR_SUPERFICIE,
+    COR_TEXTO,
+    COR_TEXTO_SECUNDARIO,
+    COR_TEXTO_TERCIARIO,
+    ESCALA,
+    ICONE_SPOTIFY_ANTERIOR,
+    ICONE_SPOTIFY_PAUSAR,
+    ICONE_SPOTIFY_PROXIMO,
+    ICONE_SPOTIFY_REPRODUZIR,
+    LADO,
+    LARGURA,
+    MARGEM_DIREITA,
+    MOSTRAR_CALENDARIO,
+    MOSTRAR_ESPECTRO,
+    MOSTRAR_PREVISAO,
+    MOSTRAR_SPOTIFY,
+    NOTIFICAR_CHUVA_FORTE,
+    OPACIDADE_FUNDO,
+    POS_X,
+    POS_Y,
+    PREFIXO_PAUSADO,
+    PRESETS,
+    RAIO_BORDA,
+    TAMANHO_CAPA,
+    UNIDADE_TEMPERATURA,
+    VERIFICAR_ARQUIVOS_SEG,
+    VERSAO,
+)
+from config.i18n import STRINGS, idioma, t
+from css import gerar_css
+from spectrum import N_BARS, AudioSpectrum
 
 log = logging.getLogger("widget")
 
@@ -403,8 +428,9 @@ class WidgetDesktop(Gtk.Window):
         if gw is None:
             return
         try:
-            from gi.repository import GdkX11
             import subprocess
+
+            from gi.repository import GdkX11
             xid = hex(GdkX11.X11Window.get_xid(gw))
             subprocess.run(
                 ["xprop", "-id", xid, "-f", "_NET_WM_STATE", "32a", "-set", "_NET_WM_STATE",
@@ -1422,7 +1448,14 @@ class WidgetDesktop(Gtk.Window):
     def _recarregar_config(self):
         """Recarrega módulos de config/css, atualiza globais e reaplica tudo."""
         import importlib
-        import config.colors, config.personalizar, config.layout, config.themes, config.i18n, config, css
+
+        import config
+        import config.colors
+        import config.i18n
+        import config.layout
+        import config.personalizar
+        import config.themes
+        import css
         try:
             importlib.reload(config.colors)
             importlib.reload(config.personalizar)
@@ -1436,8 +1469,8 @@ class WidgetDesktop(Gtk.Window):
             return
 
         global gerar_css, t, idioma, STRINGS
+        from config.i18n import STRINGS, idioma, t
         from css import gerar_css
-        from config.i18n import t, idioma, STRINGS
 
         g = globals()
         for k in dir(config):

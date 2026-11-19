@@ -9,7 +9,7 @@ import sys
 import threading
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, Signal, QUrl
+from PySide6.QtCore import Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -30,13 +30,17 @@ from PySide6.QtWidgets import (
 )
 
 from config import (
-    CIDADE, LADO, VERSAO, PRESETS, OPACIDADE_FUNDO, ESCALA,
-    MOSTRAR_CALENDARIO, MOSTRAR_SPOTIFY, MOSTRAR_ESPECTRO, MOSTRAR_PREVISAO,
-    UNIDADE_TEMPERATURA, NOTIFICAR_CHUVA_FORTE, ADAPTAR_WALLPAPER_AUTO,
-    COR_BASE, COR_SUPERFICIE, COR_TEXTO, COR_TEXTO_SECUNDARIO,
-    COR_TEXTO_TERCIARIO, COR_DESTAQUE, COR_BOTOES_SPOTIFY,
+    COR_BASE,
+    COR_BOTOES_SPOTIFY,
+    COR_DESTAQUE,
+    COR_SUPERFICIE,
+    COR_TEXTO,
+    COR_TEXTO_SECUNDARIO,
+    COR_TEXTO_TERCIARIO,
+    PRESETS,
+    VERSAO,
 )
-from config.i18n import t, idioma
+from config.i18n import idioma, t
 from win.scale import px
 
 log = logging.getLogger("popspot.win.settings")
@@ -146,6 +150,8 @@ class PaginaConfig(QWidget):
         v.setContentsMargins(0, 0, 14, 8)
         v.setSpacing(px(8))
         v.addWidget(self._sep())
+        self.lbl_secao_geral = self._lbl("tituloConfig", t("section_general"))
+        v.addWidget(self.lbl_secao_geral)
 
         self.lbl_idioma = self._lbl("labelConfig", t("language"))
         v.addWidget(self.lbl_idioma)
@@ -246,34 +252,24 @@ class PaginaConfig(QWidget):
             v.addWidget(c)
 
         v.addWidget(self._sep())
-        self.lbl_cores = self._lbl("tituloConfig", t("colors"))
-        v.addWidget(self.lbl_cores)
-        self.lbl_tema = self._lbl("labelConfig", t("quick_theme"))
-        v.addWidget(self.lbl_tema)
-        nomes = list(PRESETS)
-        for i in range(0, len(nomes), 2):
-            linha_p = QHBoxLayout()
-            linha_p.setSpacing(px(8))
-            for nome in nomes[i:i + 2]:
-                b = QPushButton(t(_PRESET_I18N.get(nome, nome)))
-                b.setObjectName("btnConfigSec")
-                b.setMinimumHeight(px(30))
-                b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-                b.clicked.connect(lambda _=False, n=nome: self._aplicar_preset(n))
-                linha_p.addWidget(b)
-                self._preset_btns.append((b, nome))
-            v.addLayout(linha_p)
+        self.lbl_secao_aparencia = self._lbl("tituloConfig", t("section_appearance"))
+        v.addWidget(self.lbl_secao_aparencia)
 
-        self.btn_wall = QPushButton(t("adapt_wallpaper"))
-        self.btn_wall.setObjectName("btnConfig")
-        self.btn_wall.setToolTip(t("adapt_wallpaper_tip"))
-        self.btn_wall.clicked.connect(self._on_wallpaper)
-        v.addWidget(self.btn_wall)
-        self.chk_wall_auto = QCheckBox(t("adapt_wallpaper_auto"))
-        self.chk_wall_auto.setObjectName("checkConfig")
-        v.addWidget(self.chk_wall_auto)
-        self.lbl_dica_wall = self._lbl("dicaConfig", t("adapt_wallpaper_hint"))
-        v.addWidget(self.lbl_dica_wall)
+        self.lbl_cantos = self._lbl("labelConfig", t("corner_style"))
+        v.addWidget(self.lbl_cantos)
+        linha_cantos = QHBoxLayout()
+        linha_cantos.setSpacing(px(16))
+        self.radio_cantos_arred = QRadioButton(t("corner_rounded"))
+        self.radio_cantos_quad = QRadioButton(t("corner_square"))
+        for r in (self.radio_cantos_arred, self.radio_cantos_quad):
+            r.setObjectName("radioConfig")
+        g4 = QButtonGroup(self)
+        g4.addButton(self.radio_cantos_arred)
+        g4.addButton(self.radio_cantos_quad)
+        linha_cantos.addWidget(self.radio_cantos_arred)
+        linha_cantos.addWidget(self.radio_cantos_quad)
+        linha_cantos.addStretch(1)
+        v.addLayout(linha_cantos)
 
         self.lbl_tamanho = self._lbl("labelConfig", t("widget_size"))
         v.addWidget(self.lbl_tamanho)
@@ -303,6 +299,36 @@ class PaginaConfig(QWidget):
             lambda n: self.lbl_val_op.setText(f"{n / 100:.2f}"))
         v.addWidget(self.scale_opacidade)
         v.addWidget(self.lbl_val_op)
+
+        v.addWidget(self._sep())
+        self.lbl_cores = self._lbl("tituloConfig", t("colors"))
+        v.addWidget(self.lbl_cores)
+        self.lbl_tema = self._lbl("labelConfig", t("quick_theme"))
+        v.addWidget(self.lbl_tema)
+        nomes = list(PRESETS)
+        for i in range(0, len(nomes), 2):
+            linha_p = QHBoxLayout()
+            linha_p.setSpacing(px(8))
+            for nome in nomes[i:i + 2]:
+                b = QPushButton(t(_PRESET_I18N.get(nome, nome)))
+                b.setObjectName("btnConfigSec")
+                b.setMinimumHeight(px(30))
+                b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+                b.clicked.connect(lambda _=False, n=nome: self._aplicar_preset(n))
+                linha_p.addWidget(b)
+                self._preset_btns.append((b, nome))
+            v.addLayout(linha_p)
+
+        self.btn_wall = QPushButton(t("adapt_wallpaper"))
+        self.btn_wall.setObjectName("btnConfig")
+        self.btn_wall.setToolTip(t("adapt_wallpaper_tip"))
+        self.btn_wall.clicked.connect(self._on_wallpaper)
+        v.addWidget(self.btn_wall)
+        self.chk_wall_auto = QCheckBox(t("adapt_wallpaper_auto"))
+        self.chk_wall_auto.setObjectName("checkConfig")
+        v.addWidget(self.chk_wall_auto)
+        self.lbl_dica_wall = self._lbl("dicaConfig", t("adapt_wallpaper_hint"))
+        v.addWidget(self.lbl_dica_wall)
 
         self.lbl_dica_cores = self._lbl("dicaConfig", t("colors_hint"))
         v.addWidget(self.lbl_dica_cores)
@@ -382,6 +408,10 @@ class PaginaConfig(QWidget):
             self.radio_esq.setChecked(True)
         else:
             self.radio_dir.setChecked(True)
+        if int(getattr(cfg, "RAIO_BORDA", 20)) <= 0:
+            self.radio_cantos_quad.setChecked(True)
+        else:
+            self.radio_cantos_arred.setChecked(True)
         self.chk_calendario.setChecked(bool(getattr(cfg, "MOSTRAR_CALENDARIO", True)))
         self.chk_spotify.setChecked(bool(getattr(cfg, "MOSTRAR_SPOTIFY", True)))
         self.chk_espectro.setChecked(bool(getattr(cfg, "MOSTRAR_ESPECTRO", True)))
@@ -427,6 +457,11 @@ class PaginaConfig(QWidget):
         self.radio_esq.setText(t("side_left"))
         self.chk_autostart.setText(t("autostart"))
         self.chk_autostart.setToolTip(t("autostart_tip"))
+        self.lbl_secao_geral.setText(t("section_general"))
+        self.lbl_secao_aparencia.setText(t("section_appearance"))
+        self.lbl_cantos.setText(t("corner_style"))
+        self.radio_cantos_arred.setText(t("corner_rounded"))
+        self.radio_cantos_quad.setText(t("corner_square"))
         self.lbl_blocos.setText(t("blocks"))
         self.chk_calendario.setText(t("block_calendar"))
         self.chk_spotify.setText(t("block_spotify"))
@@ -568,12 +603,34 @@ class PaginaConfig(QWidget):
 
     def _on_wallpaper(self) -> None:
         self.lbl_status.setText(t("reading_wallpaper"))
-        threading.Thread(target=self._bg_wall, daemon=True).start()
+        pixels, origem = None, None
+        if sys.platform == "win32":
+            # Captura de tela precisa rodar na thread principal (Qt). Pega os
+            # pixels aqui — o resto (matemática de cor) vai pro background.
+            # Captura a área de trabalho de verdade: funciona mesmo quando
+            # algo como o Wallpaper Engine desenha o fundo por fora do
+            # mecanismo nativo do Windows (registro não bate com a tela).
+            try:
+                from PySide6.QtCore import QRect
 
-    def _bg_wall(self) -> None:
+                import wallpaper_theme as mod_wall
+                janela = self.window()
+                excluir = QRect(janela.pos(), janela.size())
+                img = mod_wall.capturar_tela(excluir)
+                if img is not None:
+                    pixels = mod_wall.pixels_de_qimage(img, 128)
+                    origem = t("desktop_source")
+            except Exception as e:
+                log.debug("captura de tela: %s", e)
+        threading.Thread(target=self._bg_wall, args=(pixels, origem), daemon=True).start()
+
+    def _bg_wall(self, pixels=None, origem=None) -> None:
         try:
             import wallpaper_theme as mod_wall
-            tema, info = mod_wall.adaptar_ao_wallpaper()
+            if pixels:
+                tema, info = mod_wall.tema_de_pixels(pixels), origem
+            else:
+                tema, info = mod_wall.adaptar_ao_wallpaper()
         except Exception as e:
             tema, info = None, str(e)
         self.wall_pronto.emit(tema, info)
@@ -607,6 +664,7 @@ class PaginaConfig(QWidget):
                 hex_cor = "#ffffff"
             cores[nome] = hex_cor.lower()
         cores["OPACIDADE_FUNDO"] = opacidade
+        cores["RAIO_BORDA"] = 0 if self.radio_cantos_quad.isChecked() else 20
         try:
             _gravar_constantes(_RAIZ / "config" / "personalizar.py", {
                 "CIDADE": cidade,
@@ -638,7 +696,13 @@ class PaginaConfig(QWidget):
     @staticmethod
     def _recarregar_modulos() -> None:
         import importlib
-        import config.colors, config.personalizar, config.layout, config.themes, config.i18n, config
+
+        import config
+        import config.colors
+        import config.i18n
+        import config.layout
+        import config.personalizar
+        import config.themes
         importlib.reload(config.colors)
         importlib.reload(config.personalizar)
         importlib.reload(config.layout)

@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import math
+
 import gi
+
 gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import GdkPixbuf
 

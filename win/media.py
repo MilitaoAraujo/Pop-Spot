@@ -6,7 +6,6 @@ import asyncio
 import logging
 import os
 import subprocess
-import sys
 
 log = logging.getLogger("popspot.win.media")
 
@@ -24,6 +23,8 @@ def _mods():
     try:
         from winrt.windows.media.control import (
             GlobalSystemMediaTransportControlsSessionManager as Mgr,
+        )
+        from winrt.windows.media.control import (
             GlobalSystemMediaTransportControlsSessionPlaybackStatus as St,
         )
         return Mgr, St
@@ -32,6 +33,8 @@ def _mods():
     try:
         from winsdk.windows.media.control import (
             GlobalSystemMediaTransportControlsSessionManager as Mgr,
+        )
+        from winsdk.windows.media.control import (
             GlobalSystemMediaTransportControlsSessionPlaybackStatus as St,
         )
         return Mgr, St

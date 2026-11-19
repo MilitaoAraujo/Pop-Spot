@@ -5,11 +5,11 @@
 from __future__ import annotations
 
 import array
+import logging
 import math
 import subprocess
 import sys
 import threading
-import logging
 
 log = logging.getLogger("widget.spectrum")
 

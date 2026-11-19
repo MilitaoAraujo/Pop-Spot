@@ -8,8 +8,8 @@ import logging
 import threading
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QPoint, QSize, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter, QAction, QPixmap, QIcon
+from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -27,18 +27,25 @@ from PySide6.QtWidgets import (
 )
 
 from config import (
-    LARGURA, LADO, MARGEM_DIREITA, POS_X, POS_Y, TAMANHO_CAPA, VERSAO,
-    COR_BASE, OPACIDADE_FUNDO, RAIO_BORDA,
-    MOSTRAR_CALENDARIO, MOSTRAR_SPOTIFY, MOSTRAR_PREVISAO, MOSTRAR_ESPECTRO,
-    COR_BOTOES_SPOTIFY, COR_TEXTO_APAGADO,
+    COR_BASE,
+    COR_TEXTO_APAGADO,
+    LADO,
+    LARGURA,
+    MARGEM_DIREITA,
+    OPACIDADE_FUNDO,
+    POS_X,
+    POS_Y,
+    RAIO_BORDA,
+    TAMANHO_CAPA,
+    VERSAO,
 )
 from config.i18n import t
-from spectrum import AudioSpectrum, N_BARS
+from spectrum import N_BARS, AudioSpectrum
+from win.icons import pix_clima, pix_media, pix_nota
 from win.native import aplicar_como_widget
 from win.scale import px
-from win.style import gerar_qss
 from win.settings import PaginaConfig
-from win.icons import pix_clima, pix_media, pix_nota
+from win.style import gerar_qss
 
 log = logging.getLogger("popspot.win")
 
@@ -50,7 +57,6 @@ class _Painel(QWidget):
     """Fundo arredondado com a cor/opacidade do tema."""
 
     def paintEvent(self, event):
-        from config import COR_BASE, OPACIDADE_FUNDO, RAIO_BORDA
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         cor = QColor(COR_BASE)
@@ -242,6 +248,7 @@ class WidgetWindows(QWidget):
         self.img_icone_clima = QLabel()
         self.img_icone_clima.setFixedSize(px(36), px(36))
         self._codigo_clima_atual = None
+        self._spotify_tocando = False
         self._atualizar_icone_clima(None)
         self.lbl_temperatura = self._rotulo("temperaturaClima", "--°C")
         linha_temp.addWidget(self.img_icone_clima, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -318,10 +325,20 @@ class WidgetWindows(QWidget):
         self.lbl_artista = self._rotulo("artistaMusica")
         self.lbl_album = self._rotulo("albumMusica")
         self.lbl_sem_musica = self._rotulo("semMusica", t("no_spotify"))
+        self.img_status_musica = QLabel()
+        self.img_status_musica.setObjectName("statusMusica")
+        self.img_status_musica.setFixedSize(px(13), px(13))
+        self.img_status_musica.hide()
         caixa_info = QVBoxLayout()
         caixa_info.setContentsMargins(0, 0, 0, 0)
         caixa_info.setSpacing(0)
-        caixa_info.addWidget(self.lbl_titulo)
+        caixa_info.addSpacing(px(12))
+        linha_titulo = QHBoxLayout()
+        linha_titulo.setContentsMargins(0, 0, 0, 0)
+        linha_titulo.setSpacing(px(5))
+        linha_titulo.addWidget(self.img_status_musica, 0, Qt.AlignmentFlag.AlignVCenter)
+        linha_titulo.addWidget(self.lbl_titulo, 1, Qt.AlignmentFlag.AlignVCenter)
+        caixa_info.addLayout(linha_titulo)
         caixa_info.addWidget(self.lbl_artista)
         caixa_info.addWidget(self.lbl_album)
         linha_musica = QHBoxLayout()
@@ -445,8 +462,7 @@ class WidgetWindows(QWidget):
 
     def _apos_salvar(self):
         self.setStyleSheet(gerar_qss())
-        self._atualizar_nota_spotify()
-        self._atualizar_icone_clima(self._codigo_clima_atual)
+        self._repintar_icones_tema()
         self._aplicar_visibilidade()
         self._ajustar_pagina()
         self._watch_mtimes = self._mtime_arquivos()
@@ -549,6 +565,7 @@ class WidgetWindows(QWidget):
         mod_set.t = t_now
         mod_win.t = t_now
         self.setStyleSheet(gerar_qss())
+        self._repintar_icones_tema()
         self._aplicar_visibilidade()
         if self._stack.currentIndex() != 1:
             self._pagina_cfg.carregar_valores()
@@ -716,8 +733,8 @@ class WidgetWindows(QWidget):
               umidade=dados.get("umidade", "--"))
         )
         previsao = dados.get("previsao") or []
-        from config import COR_TEXTO_SECUNDARIO
         import weather as mod_clima
+        from config import COR_TEXTO_SECUNDARIO
         for i, (lbl_dia, img, lbl_temp) in enumerate(self._previsao_widgets):
             if i < len(previsao):
                 d = previsao[i]
@@ -754,11 +771,25 @@ class WidgetWindows(QWidget):
         self.spotify_pronto.emit(dados)
 
     def _definir_icone_media(self, botao: QPushButton, tipo: str):
+        from config import COR_DESTAQUE
         tamanho = px(15)
         icone = QIcon()
-        icone.addPixmap(pix_media(tipo, tamanho, COR_BOTOES_SPOTIFY), QIcon.Mode.Normal)
+        icone.addPixmap(pix_media(tipo, tamanho, COR_DESTAQUE), QIcon.Mode.Normal)
         icone.addPixmap(pix_media(tipo, tamanho, COR_TEXTO_APAGADO), QIcon.Mode.Disabled)
         botao.setIcon(icone)
+
+    def _repintar_icones_tema(self):
+        """Redesenha os ícones que têm a cor gravada num QPixmap (não seguem
+        QSS sozinhos), pra reagir na hora a uma troca de tema/cor."""
+        self._definir_icone_media(self.btn_spotify_prev, "prev")
+        self._definir_icone_media(self.btn_spotify_play,
+                                   "pause" if getattr(self, "_spotify_tocando", False) else "play")
+        self._definir_icone_media(self.btn_spotify_next, "next")
+        if self.img_status_musica.isVisible():
+            from config import COR_DESTAQUE
+            self.img_status_musica.setPixmap(pix_media("pause", px(13), COR_DESTAQUE))
+        self._atualizar_nota_spotify()
+        self._atualizar_icone_clima(getattr(self, "_codigo_clima_atual", None))
 
     def _aplicar_spotify(self, dados):
         self._spotify_ocupado = False
@@ -771,6 +802,7 @@ class WidgetWindows(QWidget):
             self.lbl_titulo.hide()
             self.lbl_artista.hide()
             self.lbl_album.hide()
+            self.img_status_musica.hide()
             self.lbl_cabecalho_spotify.setText(t("playing"))
             self.btn_capa.setIcon(QIcon())
             self._url_capa = None
@@ -780,17 +812,17 @@ class WidgetWindows(QWidget):
         self.lbl_artista.show()
         self.lbl_album.show()
         tocando = str(dados.get("status") or "") == "Playing"
+        self._spotify_tocando = tocando
         self.lbl_cabecalho_spotify.setText(t("playing") if tocando else t("paused"))
         self._definir_icone_media(self.btn_spotify_play, "pause" if tocando else "play")
         self.btn_spotify_play.setToolTip(t("pause") if tocando else t("play"))
-        titulo = str(dados.get("titulo") or "")
-        if not tocando:
-            try:
-                from config import PREFIXO_PAUSADO
-                titulo = f"{PREFIXO_PAUSADO}{titulo}"
-            except Exception:
-                pass
-        self.lbl_titulo.setText(titulo)
+        if tocando:
+            self.img_status_musica.hide()
+        else:
+            from config import COR_DESTAQUE
+            self.img_status_musica.setPixmap(pix_media("pause", px(13), COR_DESTAQUE))
+            self.img_status_musica.show()
+        self.lbl_titulo.setText(str(dados.get("titulo") or ""))
         self.lbl_artista.setText(str(dados.get("artista") or ""))
         self.lbl_album.setText(str(dados.get("album") or ""))
         vol = dados.get("volume")

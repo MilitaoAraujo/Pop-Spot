@@ -5,11 +5,18 @@ from win.scale import px
 
 def gerar_qss() -> str:
     from config import (
-        COR_HORA, COR_TEXTO_PRIMARIO, COR_DESTAQUE,
-        COR_TEXTO_SECUNDARIO, COR_TEXTO_TERCIARIO, COR_TEXTO_APAGADO,
-        COR_SEPARADOR, TAMANHO_FONTE_HORA,
-        COR_SUPERFICIE, COR_SUPERFICIE_HOVER,
-        COR_BOTOES_SPOTIFY, COR_TEXTO,
+        COR_BOTOES_SPOTIFY,
+        COR_DESTAQUE,
+        COR_HORA,
+        COR_SEPARADOR,
+        COR_SUPERFICIE,
+        COR_SUPERFICIE_HOVER,
+        COR_TEXTO,
+        COR_TEXTO_APAGADO,
+        COR_TEXTO_PRIMARIO,
+        COR_TEXTO_SECUNDARIO,
+        COR_TEXTO_TERCIARIO,
+        TAMANHO_FONTE_HORA,
     )
 
     return f"""
@@ -58,7 +65,7 @@ QLabel#cabecalhoSpotify {{
     font-size: {px(9)}px; font-weight: 700; color: {COR_DESTAQUE};
 }}
 QLabel#tituloMusica {{
-    font-size: {px(14)}px; font-weight: 700; color: {COR_DESTAQUE}; margin-top: {px(12)}px;
+    font-size: {px(14)}px; font-weight: 700; color: {COR_DESTAQUE};
 }}
 QLabel#artistaMusica {{
     font-size: {px(12)}px; color: {COR_TEXTO_SECUNDARIO}; margin-top: {px(3)}px;

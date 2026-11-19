@@ -1,4 +1,4 @@
-"""Spotify / mídia no Windows via SMTC (System Media Transport Controls)."""
+"""Mídia no Windows via SMTC (System Media Transport Controls): qualquer player ativo."""
 
 from __future__ import annotations
 
@@ -43,12 +43,17 @@ def _run(coro):
     return asyncio.run(coro)
 
 
-def _eh_spotify(sessao) -> bool:
-    aumid = (getattr(sessao, "source_app_user_model_id", None) or "").lower()
-    return "spotify" in aumid
+def _nome_processo_sessao(sessao) -> str:
+    """Nome (sem path/extensão) do app por trás da sessão, a partir do AUMID."""
+    aumid = (getattr(sessao, "source_app_user_model_id", None) or "")
+    base = aumid.replace("\\", "/").rsplit("/", 1)[-1]
+    if base.lower().endswith(".exe"):
+        base = base[:-4]
+    return base.lower()
 
 
 async def _sessao():
+    """Sessão SMTC ativa: prioriza quem está tocando, senão usa a sessão atual do sistema."""
     Mgr, _st = _mods()
     if Mgr is None:
         return None
@@ -59,8 +64,13 @@ async def _sessao():
     except Exception:
         sessoes = [atual] if atual else []
     for s in sessoes:
-        if s is not None and _eh_spotify(s):
-            return s
+        if s is None:
+            continue
+        try:
+            if int(s.get_playback_info().playback_status) == 4:
+                return s
+        except Exception:
+            continue
     return atual
 
 
@@ -93,6 +103,7 @@ async def _buscar():
     s = await _sessao()
     if s is None:
         return None
+    nome_processo = _nome_processo_sessao(s)
     info = s.get_playback_info()
     st = info.playback_status
     status = _STATUS.get(int(st), str(st))
@@ -117,6 +128,7 @@ async def _buscar():
         "capa": chave,
         "capa_bytes": capa or None,
         "volume": None,
+        "_processo": nome_processo,
     }
 
 
@@ -128,65 +140,67 @@ def _com_init():
         pass
 
 
-def _volume_spotify():
-    """Volume da sessão de áudio do Spotify (0.0–1.0), ou None."""
+def _processo_atual() -> str:
+    """Nome do processo (sem .exe) por trás do player de mídia ativo agora."""
+    try:
+        s = _run(_sessao())
+    except Exception:
+        return ""
+    return _nome_processo_sessao(s) if s else ""
+
+
+def _sessao_audio_do_processo(sessoes, nome_processo: str):
+    for s in sessoes:
+        proc = s.Process
+        nome = ""
+        if proc is not None:
+            try:
+                nome = (proc.name() or "").lower()
+            except Exception:
+                nome = ""
+        disp = str(getattr(s, "DisplayName", "") or "").lower()
+        if nome_processo in nome or nome_processo in disp:
+            return s
+    return None
+
+
+def _volume_processo(nome_processo: str):
+    """Volume da sessão de áudio do player ativo (0.0–1.0), ou None."""
+    if not nome_processo:
+        return None
     try:
         from pycaw.pycaw import AudioUtilities
     except ImportError:
         return None
     _com_init()
     try:
-        for s in AudioUtilities.GetAllSessions():
-            proc = s.Process
-            nome = ""
-            if proc is not None:
-                try:
-                    nome = (proc.name() or "").lower()
-                except Exception:
-                    nome = ""
-            if "spotify" not in nome:
-                disp = str(getattr(s, "DisplayName", "") or "").lower()
-                if "spotify" not in disp:
-                    continue
-            vol = s.SimpleAudioVolume
-            if vol is None:
-                continue
-            return float(vol.GetMasterVolume())
+        s = _sessao_audio_do_processo(AudioUtilities.GetAllSessions(), nome_processo)
+        vol = s.SimpleAudioVolume if s else None
+        return float(vol.GetMasterVolume()) if vol else None
     except Exception as e:
         log.debug("pycaw ler: %s", e)
     return None
 
 
-def _definir_volume_spotify(valor: float) -> bool:
+def _definir_volume_processo(valor: float, nome_processo: str) -> bool:
+    if not nome_processo:
+        return False
     try:
         from pycaw.pycaw import AudioUtilities
     except ImportError:
         return False
     _com_init()
     alvo = max(0.0, min(1.0, float(valor)))
-    ok = False
     try:
-        for s in AudioUtilities.GetAllSessions():
-            proc = s.Process
-            nome = ""
-            if proc is not None:
-                try:
-                    nome = (proc.name() or "").lower()
-                except Exception:
-                    nome = ""
-            if "spotify" not in nome:
-                disp = str(getattr(s, "DisplayName", "") or "").lower()
-                if "spotify" not in disp:
-                    continue
-            vol = s.SimpleAudioVolume
-            if vol is None:
-                continue
-            vol.SetMasterVolume(alvo, None)
-            ok = True
+        s = _sessao_audio_do_processo(AudioUtilities.GetAllSessions(), nome_processo)
+        vol = s.SimpleAudioVolume if s else None
+        if vol is None:
+            return False
+        vol.SetMasterVolume(alvo, None)
+        return True
     except Exception as e:
         log.debug("pycaw set: %s", e)
         return False
-    return ok
 
 
 async def _comando(metodo: str) -> bool:
@@ -231,7 +245,8 @@ def buscar_faixa() -> dict | None:
         log.debug("smtc buscar: %s", e)
         return None
     if dados:
-        dados["volume"] = _volume_spotify()
+        processo = dados.pop("_processo", "")
+        dados["volume"] = _volume_processo(processo)
     return dados
 
 
@@ -246,7 +261,7 @@ def comando(metodo: str) -> bool:
 
 
 def definir_volume(valor: float) -> bool:
-    return _definir_volume_spotify(valor)
+    return _definir_volume_processo(valor, _processo_atual())
 
 
 def abrir() -> bool:

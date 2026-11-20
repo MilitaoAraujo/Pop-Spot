@@ -3,8 +3,6 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("GdkPixbuf", "2.0")
-import calendar
-import datetime
 import locale
 import logging
 import os
@@ -15,7 +13,6 @@ from pathlib import Path
 
 from gi.repository import Gdk, GLib, Gtk, Pango
 
-import spotify as mod_spotify
 import wallpaper_theme as mod_wall
 import weather as mod_clima
 from config import (
@@ -31,10 +28,6 @@ from config import (
     COR_TEXTO_SECUNDARIO,
     COR_TEXTO_TERCIARIO,
     ESCALA,
-    ICONE_SPOTIFY_ANTERIOR,
-    ICONE_SPOTIFY_PAUSAR,
-    ICONE_SPOTIFY_PROXIMO,
-    ICONE_SPOTIFY_REPRODUZIR,
     LADO,
     LARGURA,
     MARGEM_DIREITA,
@@ -46,17 +39,20 @@ from config import (
     OPACIDADE_FUNDO,
     POS_X,
     POS_Y,
-    PREFIXO_PAUSADO,
     PRESETS,
     RAIO_BORDA,
     TAMANHO_CAPA,
     UNIDADE_TEMPERATURA,
     VERIFICAR_ARQUIVOS_SEG,
     VERSAO,
+    presets_usuario,
 )
 from config.i18n import STRINGS, idioma, t
 from css import gerar_css
-from spectrum import N_BARS, AudioSpectrum
+from plugins.clima_gtk import ClimaPlugin
+from plugins.espectro_gtk import EspectroPlugin
+from plugins.midia_gtk import BotaoMedia, MidiaPlugin
+from plugins.relogio_gtk import RelogioPlugin
 
 log = logging.getLogger("widget")
 
@@ -116,73 +112,6 @@ def _rgba_para_hex(rgba: Gdk.RGBA) -> str:
     )
 
 
-class _BotaoMedia(Gtk.Button):
-    """Controles prev/play/pause/next — Gtk.Button (visível sem python3-gi-cairo)."""
-
-    _ICONES = {
-        "play": ICONE_SPOTIFY_REPRODUZIR,
-        "pause": ICONE_SPOTIFY_PAUSAR,
-        "prev": ICONE_SPOTIFY_ANTERIOR,
-        "next": ICONE_SPOTIFY_PROXIMO,
-    }
-
-    def __init__(self, tipo: str, tooltip: str):
-        super().__init__()
-        self._tipo = tipo
-        self.set_relief(Gtk.ReliefStyle.NONE)
-        self.set_focus_on_click(False)
-        self.set_tooltip_text(tooltip)
-        self.get_style_context().add_class("btnSpotify")
-        self.set_sensitive(False)
-        self._atualizar_label()
-
-    def definir_tamanho(self, w: int, h: int):
-        self.set_size_request(w, h)
-
-    def set_tipo(self, tipo: str):
-        self._tipo = tipo
-        self._atualizar_label()
-
-    def set_habilitado(self, v: bool):
-        self.set_sensitive(v)
-
-    def _atualizar_label(self):
-        self.set_label(self._ICONES.get(self._tipo, ""))
-
-
-class _EspectroBarras(Gtk.Box):
-    """Barras do espectro sem Cairo — EventBox + altura dinâmica."""
-
-    def __init__(self, n: int = N_BARS, altura: int = 55, largura: int = 95):
-        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
-        self.set_valign(Gtk.Align.CENTER)
-        self._n = n
-        self._altura = altura
-        self._barras = []
-        for _ in range(n):
-            col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-            spacer = Gtk.Box()
-            spacer.set_vexpand(True)
-            bar = Gtk.EventBox()
-            bar.get_style_context().add_class("specBar")
-            bar.set_size_request(4, 2)
-            col.pack_start(spacer, True, True, 0)
-            col.pack_start(bar, False, False, 0)
-            self.pack_start(col, True, True, 0)
-            self._barras.append(bar)
-        self.definir_tamanho(largura, altura)
-
-    def definir_tamanho(self, largura: int, altura: int):
-        self._altura = max(8, int(altura))
-        self.set_size_request(max(20, int(largura)), self._altura)
-
-    def set_levels(self, levels):
-        h = self._altura
-        for bar, v in zip(self._barras, levels):
-            px = max(2, int(h * max(0.0, min(1.0, float(v)))))
-            bar.set_size_request(4, px)
-
-
 class _BotaoEngrenagem(Gtk.Button):
     """Botão de engrenagem — abre a tela de configurações."""
 
@@ -215,7 +144,6 @@ for _loc in ("pt_BR.UTF-8", "pt_BR", "pt_PT.UTF-8", "pt_PT", ""):
 class WidgetDesktop(Gtk.Window):
     def __init__(self):
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
-        self._url_capa_atual = None
         self._ls = None
         self._pos_x = 0
         self._pos_y = 0
@@ -223,10 +151,8 @@ class WidgetDesktop(Gtk.Window):
         self._arrastando = False
         self._drag_off_x = 0.0
         self._drag_off_y = 0.0
-        self._spotify_ocupado = False
         self._altura_atual = 800
-        self._espectro = AudioSpectrum()
-        self._cal_dia = -1
+        self._plugin_espectro = EspectroPlugin()
         self._xprop_feito = False
         self._css_provider = None
         self._previsao_widgets = []
@@ -683,151 +609,56 @@ class WidgetDesktop(Gtk.Window):
         self.connect("map", self._inicializar_altura)
         self.add(raiz)
 
-    def _tornar_clicavel(self, widget):
-        """Envolve um widget num EventBox clicável, sem disparar arrasto da janela."""
-        caixa = Gtk.EventBox()
-        caixa.set_visible_window(False)
-        caixa.add(widget)
-        caixa._pop_spot_no_drag = True
-        caixa.connect("button-press-event", self._on_clique_spotify)
-        return caixa
-
-    def _on_clique_spotify(self, _widget, event):
-        if event.button == 1:
-            threading.Thread(target=mod_spotify.abrir, daemon=True).start()
-            return True
-        return False
-
     def _construir_pagina_principal(self):
         pagina = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
-        # Relógio
-        self.lbl_hora = self._rotulo("hora", "00", Gtk.Align.START)
-        self.lbl_minuto = self._rotulo("minuto", "00", Gtk.Align.START)
-        self.lbl_diasem = self._rotulo("diaSemana", "", Gtk.Align.START)
-        self.lbl_data = self._rotulo("dataCompleta", "", Gtk.Align.START)
-
-        caixa_clock = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        for w in (self.lbl_hora, self.lbl_minuto, self.lbl_diasem, self.lbl_data):
-            caixa_clock.pack_start(w, False, False, 0)
-
-        caixa_relogio = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        caixa_relogio.pack_start(caixa_clock, True, True, 0)
-        caixa_relogio.pack_start(self._construir_painel_dir(), False, False, 0)
+        # Relógio (plugin)
+        self._plugin_relogio = RelogioPlugin()
+        caixa_relogio = self._plugin_relogio.montar(self)
+        self.lbl_hora = self._plugin_relogio.lbl_hora
+        self.lbl_minuto = self._plugin_relogio.lbl_minuto
+        self.lbl_diasem = self._plugin_relogio.lbl_diasem
+        self.lbl_data = self._plugin_relogio.lbl_data
+        self.lbl_prog_dia = self._plugin_relogio.lbl_prog_dia
+        self.lbl_prog_pct = self._plugin_relogio.lbl_prog_pct
+        self.barra_dia = self._plugin_relogio.barra_dia
+        self._cal_grid = self._plugin_relogio.cal_grid
+        self._painel_dir = self._plugin_relogio.painel_dir
         pagina.pack_start(caixa_relogio, False, False, 0)
 
         pagina.pack_start(self._separador(), False, False, 0)
 
-        # Clima
-        caixa_clima = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-
-        linha_temp = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        self.img_icone_clima = Gtk.Image()
-        self.img_icone_clima.get_style_context().add_class("iconeClima")
-        self.img_icone_clima.set_size_request(36, 36)
-        self.img_icone_clima.set_valign(Gtk.Align.CENTER)
-        self._codigo_clima_atual = None
-        self._atualizar_icone_clima(None)  # sol padrão enquanto carrega
-        self.lbl_temperatura = self._rotulo("temperaturaClima", "--°C", Gtk.Align.START)
-        linha_temp.pack_start(self.img_icone_clima, False, False, 0)
-        linha_temp.pack_start(self.lbl_temperatura, False, False, 0)
-        caixa_clima.pack_start(linha_temp, False, False, 0)
-
-        self.lbl_cidade = self._rotulo("cidadeClima", "--", Gtk.Align.START)
-        self.lbl_descricao = self._rotulo("descricaoClima", t("seeking_weather"), Gtk.Align.START)
-        self.lbl_detalhe = self._rotulo("detalheClima", "", Gtk.Align.START)
-        for w in (self.lbl_cidade, self.lbl_descricao, self.lbl_detalhe):
-            caixa_clima.pack_start(w, False, False, 0)
-
-        caixa_clima.pack_start(self._construir_previsao(), False, False, 6)
-
+        # Clima (plugin)
+        self._plugin_clima = ClimaPlugin()
+        caixa_clima = self._plugin_clima.montar(self)
+        self.img_icone_clima = self._plugin_clima.img_icone
+        self.lbl_temperatura = self._plugin_clima.lbl_temperatura
+        self.lbl_cidade = self._plugin_clima.lbl_cidade
+        self.lbl_descricao = self._plugin_clima.lbl_descricao
+        self.lbl_detalhe = self._plugin_clima.lbl_detalhe
+        self._previsao_widgets = self._plugin_clima.previsao_widgets
+        self._caixa_previsao = self._plugin_clima.caixa_previsao
         pagina.pack_start(caixa_clima, False, False, 0)
         pagina.pack_start(self._separador(), False, False, 0)
 
-        # Spotify
-        caixa_spotify = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        # Mídia/Spotify (plugin) — o espectro é outro plugin, referenciado aqui
+        self.espectro_area = self._plugin_espectro.montar(self)
+        self._plugin_midia = MidiaPlugin()
+        caixa_spotify = self._plugin_midia.montar(self)
         self._caixa_spotify = caixa_spotify
-
-        linha_cabecalho = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
-        self.img_nota_spotify = Gtk.Image()
-        self.img_nota_spotify.set_valign(Gtk.Align.CENTER)
-        self._atualizar_nota_spotify()
-        self.lbl_cabecalho_spotify = self._rotulo("cabecalhoSpotify", t("playing"), Gtk.Align.START)
-        linha_cabecalho.pack_start(self._tornar_clicavel(self.img_nota_spotify), False, False, 0)
-        linha_cabecalho.pack_start(self.lbl_cabecalho_spotify, False, False, 0)
-        caixa_spotify.pack_start(linha_cabecalho, False, False, 0)
-
-        self.img_capa = Gtk.Image()
-        self.img_capa.set_size_request(_px(TAMANHO_CAPA), _px(TAMANHO_CAPA))
-        envoltorio_capa = self._tornar_clicavel(self.img_capa)
-        envoltorio_capa.set_halign(Gtk.Align.START)
-        caixa_spotify.pack_start(envoltorio_capa, False, False, 8)
-
-        linha_ctrl = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        linha_ctrl.set_halign(Gtk.Align.START)
-        self.btn_spotify_prev = _BotaoMedia("prev", t("prev_track"))
-        self.btn_spotify_prev.connect("clicked", self._on_spotify_prev)
-        self.btn_spotify_play = _BotaoMedia("play", t("play"))
-        self.btn_spotify_play.connect("clicked", self._on_spotify_play_pause)
-        self.btn_spotify_next = _BotaoMedia("next", t("next_track"))
-        self.btn_spotify_next.connect("clicked", self._on_spotify_next)
-        for b in (self.btn_spotify_prev, self.btn_spotify_play, self.btn_spotify_next):
-            linha_ctrl.pack_start(b, False, False, 0)
-
-        self._volume_syncing = False
-        self.scale_volume = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1)
-        self.scale_volume.set_draw_value(False)
-        self.scale_volume.set_size_request(88, -1)
-        self.scale_volume.set_valign(Gtk.Align.CENTER)
-        self.scale_volume.set_tooltip_text(t("volume"))
-        self.scale_volume.get_style_context().add_class("scaleVolume")
-        self.scale_volume.set_sensitive(False)
-        self.scale_volume.connect("value-changed", self._on_volume_changed)
-        self._ignorar_scroll_scale(self.scale_volume)
-        linha_ctrl.pack_start(self.scale_volume, False, False, 4)
-
-        caixa_spotify.pack_start(linha_ctrl, False, False, 8)
-
-        self.lbl_titulo = self._rotulo("tituloMusica", "", Gtk.Align.START, reticencias=True)
-        self.lbl_artista = self._rotulo("artistaMusica", "", Gtk.Align.START, reticencias=True)
-        self.lbl_album = self._rotulo("albumMusica", "", Gtk.Align.START, reticencias=True)
-        self.lbl_sem_musica = self._rotulo("semMusica", t("no_spotify"), Gtk.Align.START)
-
-        caixa_info = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        for w in (self.lbl_titulo, self.lbl_artista, self.lbl_album):
-            caixa_info.pack_start(w, False, False, 0)
-
-        self.espectro_area = _EspectroBarras()
-
-        linha_musica = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        linha_musica.pack_start(caixa_info, True, True, 0)
-        linha_musica.pack_start(self.espectro_area, False, False, 0)
-
-        caixa_spotify.pack_start(linha_musica, False, False, 0)
-        caixa_spotify.pack_start(self.lbl_sem_musica, False, False, 0)
-
+        self.img_nota_spotify = self._plugin_midia.img_nota
+        self.lbl_cabecalho_spotify = self._plugin_midia.lbl_cabecalho
+        self.img_capa = self._plugin_midia.img_capa
+        self.btn_spotify_prev = self._plugin_midia.btn_prev
+        self.btn_spotify_play = self._plugin_midia.btn_play
+        self.btn_spotify_next = self._plugin_midia.btn_next
+        self.scale_volume = self._plugin_midia.scale_volume
+        self.lbl_titulo = self._plugin_midia.lbl_titulo
+        self.lbl_artista = self._plugin_midia.lbl_artista
+        self.lbl_album = self._plugin_midia.lbl_album
+        self.lbl_sem_musica = self._plugin_midia.lbl_sem_musica
         pagina.pack_start(caixa_spotify, False, False, 0)
         return pagina
-
-    def _construir_previsao(self):
-        """Linha com previsão de 3 dias: dia + ícone 20px + mín/máx."""
-        caixa = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        caixa.set_homogeneous(True)
-        self._previsao_widgets = []
-        for _ in range(3):
-            col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-            col.set_halign(Gtk.Align.START)
-            lbl_dia = self._rotulo("previsaoDia", "", Gtk.Align.START)
-            img = Gtk.Image()
-            img.set_size_request(20, 20)
-            lbl_temp = self._rotulo("previsaoTemp", "", Gtk.Align.START)
-            col.pack_start(lbl_dia, False, False, 0)
-            col.pack_start(img, False, False, 0)
-            col.pack_start(lbl_temp, False, False, 0)
-            caixa.pack_start(col, True, True, 0)
-            self._previsao_widgets.append((lbl_dia, img, lbl_temp))
-        self._caixa_previsao = caixa
-        return caixa
 
     # ── Tela de configurações ─────────────────────────────────────────────
 
@@ -962,16 +793,14 @@ class WidgetDesktop(Gtk.Window):
         # Presets
         self.lbl_tema = self._rotulo("labelConfig", t("quick_theme"), Gtk.Align.START)
         conteudo.pack_start(self.lbl_tema, False, False, 0)
-        linha_presets = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        linha_presets.set_homogeneous(True)
-        self._preset_btns = []
-        for nome_preset in PRESETS:
-            bp = Gtk.Button(label=t(_PRESET_I18N.get(nome_preset, nome_preset)))
-            bp.get_style_context().add_class("btnConfigSec")
-            bp.connect("clicked", self._on_aplicar_preset, nome_preset)
-            linha_presets.pack_start(bp, True, True, 0)
-            self._preset_btns.append((bp, nome_preset))
-        conteudo.pack_start(linha_presets, False, False, 0)
+        self._caixa_presets = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        conteudo.pack_start(self._caixa_presets, False, False, 0)
+        self._construir_presets_ui()
+
+        self.btn_salvar_preset = Gtk.Button(label=t("save_preset"))
+        self.btn_salvar_preset.get_style_context().add_class("btnConfigSec")
+        self.btn_salvar_preset.connect("clicked", self._on_salvar_preset)
+        conteudo.pack_start(self.btn_salvar_preset, False, False, 0)
 
         self.btn_wall = Gtk.Button(label=t("adapt_wallpaper"))
         self.btn_wall.set_tooltip_text(t("adapt_wallpaper_tip"))
@@ -1095,12 +924,80 @@ class WidgetDesktop(Gtk.Window):
         btn.set_rgba(_hex_para_rgba(texto))
         btn.handler_unblock_by_func(self._on_cor_picker)
 
+    def _construir_presets_ui(self):
+        for filho in list(self._caixa_presets.get_children()):
+            self._caixa_presets.remove(filho)
+
+        self._preset_btns = []
+        personalizados = presets_usuario.carregar()
+        nomes = list(PRESETS) + list(personalizados)
+        for i in range(0, len(nomes), 2):
+            linha = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            linha.set_homogeneous(True)
+            for nome_preset in nomes[i : i + 2]:
+                bp = Gtk.Button(
+                    label=t(_PRESET_I18N.get(nome_preset, nome_preset))
+                    if nome_preset in PRESETS
+                    else nome_preset
+                )
+                bp.get_style_context().add_class("btnConfigSec")
+                bp.connect("clicked", self._on_aplicar_preset, nome_preset)
+                linha.pack_start(bp, True, True, 0)
+                self._preset_btns.append((bp, nome_preset))
+                if nome_preset in personalizados:
+                    btn_x = Gtk.Button(label="×")
+                    btn_x.get_style_context().add_class("btnConfigSec")
+                    btn_x.set_tooltip_text(t("remove_preset_tip"))
+                    btn_x.connect("clicked", self._on_remover_preset, nome_preset)
+                    linha.pack_start(btn_x, False, False, 0)
+            self._caixa_presets.pack_start(linha, False, False, 0)
+        self._caixa_presets.show_all()
+
     def _on_aplicar_preset(self, _btn, nome_preset):
-        preset = PRESETS.get(nome_preset)
+        preset = PRESETS.get(nome_preset) or presets_usuario.carregar().get(nome_preset)
         if not preset:
             return
         self._preencher_cores_ui(preset)
         self.lbl_status_config.set_text(t("theme_applied", name=nome_preset))
+
+    def _on_remover_preset(self, _btn, nome_preset):
+        presets_usuario.remover(nome_preset)
+        self._construir_presets_ui()
+
+    def _on_salvar_preset(self, _btn):
+        dialogo = Gtk.Dialog(
+            title=t("save_preset_title"),
+            transient_for=self,
+            flags=Gtk.DialogFlags.MODAL,
+        )
+        dialogo.add_buttons(t("cancel"), Gtk.ResponseType.CANCEL, t("ok"), Gtk.ResponseType.OK)
+        caixa = dialogo.get_content_area()
+        caixa.set_spacing(6)
+        caixa.set_border_width(10)
+        caixa.pack_start(Gtk.Label(label=t("save_preset_prompt")), False, False, 0)
+        entrada = Gtk.Entry()
+        entrada.set_activates_default(True)
+        caixa.pack_start(entrada, False, False, 0)
+        dialogo.set_default_response(Gtk.ResponseType.OK)
+        dialogo.show_all()
+        resposta = dialogo.run()
+        nome = entrada.get_text().strip()
+        dialogo.destroy()
+        if resposta != Gtk.ResponseType.OK or not nome:
+            return
+
+        cores = {}
+        for nome_cor, _chave, _padrao in _CORES_EDITAVEIS:
+            entry = self._cores_botoes.get(nome_cor + "_entry")
+            btn = self._cores_botoes.get(nome_cor)
+            hex_cor = entry.get_text().strip() if entry is not None else ""
+            if not re.fullmatch(r"#[0-9A-Fa-f]{6}", hex_cor, flags=re.I):
+                hex_cor = _rgba_para_hex(btn.get_rgba()) if btn is not None else "#ffffff"
+            cores[nome_cor] = hex_cor.lower()
+        cores["OPACIDADE_FUNDO"] = round(float(self.scale_opacidade.get_value()), 2)
+        presets_usuario.salvar(nome, cores)
+        self._construir_presets_ui()
+        self.lbl_status_config.set_text(t("preset_saved", name=nome))
 
     def _preencher_cores_ui(self, cores: dict):
         for nome, valor in cores.items():
@@ -1383,7 +1280,7 @@ class WidgetDesktop(Gtk.Window):
             atuais = {STRINGS["pt"]["seeking_weather"], STRINGS["en"]["seeking_weather"]}
             if self.lbl_descricao.get_text() in atuais:
                 self.lbl_descricao.set_text(t("seeking_weather"))
-        self._cal_dia = -1
+        self._plugin_relogio.cal_dia = -1
         self._tick_relogio()
 
     def _on_salvar_config(self, _btn):
@@ -1489,8 +1386,15 @@ class WidgetDesktop(Gtk.Window):
             return
 
         global gerar_css, t, idioma, STRINGS
+        import plugins.clima_gtk as mod_clima_plugin
+        import plugins.midia_gtk as mod_midia_plugin
+        import plugins.relogio_gtk as mod_relogio
         from config.i18n import STRINGS, idioma, t
         from css import gerar_css
+
+        mod_relogio.t = t
+        mod_clima_plugin.t = t
+        mod_midia_plugin.t = t
 
         g = globals()
         for k in dir(config):
@@ -1501,12 +1405,9 @@ class WidgetDesktop(Gtk.Window):
         self._aplicar_idioma()
         self._aplicar_visibilidade()
         self._aplicar_escala_widgets()
-        self._atualizar_nota_spotify()
-        codigo = getattr(self, "_codigo_clima_atual", None)
-        if codigo is not None:
-            self._atualizar_icone_clima(codigo)
-        if self._url_capa_atual:
-            threading.Thread(target=self._bg_capa, args=(self._url_capa_atual,), daemon=True).start()
+        self._plugin_midia.on_theme_change(None)
+        self._plugin_clima.on_theme_change(None)
+        self._plugin_midia.recarregar_capa_atual()
         mod_clima.limpar_cache_localizacao()
         threading.Thread(target=self._bg_clima, daemon=True).start()
         self._watch_mtimes = self._mtime_arquivos()
@@ -1543,81 +1444,13 @@ class WidgetDesktop(Gtk.Window):
             self.btn_config.set_size_request(_px(32), _px(32))
         for _lbl_dia, img, _lbl_temp in getattr(self, "_previsao_widgets", []):
             img.set_size_request(_px(20), _px(20))
-        self._atualizar_nota_spotify()
+        self._plugin_midia.atualizar_nota()
 
     def _aplicar_visibilidade(self):
         self._cal_grid.set_visible(bool(MOSTRAR_CALENDARIO))
         self._caixa_spotify.set_visible(bool(MOSTRAR_SPOTIFY))
-        espectro_on = bool(MOSTRAR_ESPECTRO)
-        self.espectro_area.set_visible(espectro_on)
+        self._plugin_espectro.aplicar_visibilidade()
         self._caixa_previsao.set_visible(bool(MOSTRAR_PREVISAO))
-        if espectro_on:
-            self._espectro.start()
-        else:
-            self._espectro.stop()
-
-    def _atualizar_nota_spotify(self):
-        if getattr(self, "img_nota_spotify", None) is None:
-            return
-        try:
-            from weather_icons import renderizar_nota
-
-            self.img_nota_spotify.set_from_pixbuf(renderizar_nota(tamanho=_px(16), cor=COR_DESTAQUE))
-        except Exception as e:
-            log.debug("nota spotify: %s", e)
-
-    # ── Painel direito do relógio (progresso + calendário) ────────────────
-
-    def _construir_painel_dir(self):
-        painel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        painel.set_valign(Gtk.Align.CENTER)
-        painel.set_size_request(95, -1)
-        self._painel_dir = painel
-
-        linha_prog = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        linha_prog.set_halign(Gtk.Align.END)
-        self.lbl_prog_dia = self._rotulo("progLabel", t("day_progress"), Gtk.Align.END)
-        linha_prog.pack_start(self.lbl_prog_dia, False, False, 0)
-        self.lbl_prog_pct = self._rotulo("progPct", "0%", Gtk.Align.END)
-        linha_prog.pack_start(self.lbl_prog_pct, False, False, 0)
-        painel.pack_start(linha_prog, False, False, 0)
-
-        self.barra_dia = Gtk.ProgressBar()
-        self.barra_dia.get_style_context().add_class("barDia")
-        self.barra_dia.set_show_text(False)
-        self.barra_dia.set_fraction(0.0)
-        painel.pack_start(self.barra_dia, False, False, 0)
-
-        self._cal_grid = Gtk.Grid()
-        self._cal_grid.set_column_spacing(4)
-        self._cal_grid.set_row_spacing(3)
-        self._cal_grid.set_halign(Gtk.Align.END)
-        painel.pack_start(self._cal_grid, False, False, 10)
-
-        return painel
-
-    def _atualizar_calendario(self):
-        for child in list(self._cal_grid.get_children()):
-            self._cal_grid.remove(child)
-
-        agora = datetime.datetime.now()
-        hoje = agora.day
-
-        for col in range(7):
-            lbl = Gtk.Label(label=t(f"cal_{col}"))
-            lbl.get_style_context().add_class("calHdr")
-            self._cal_grid.attach(lbl, col, 0, 1, 1)
-
-        for row, semana in enumerate(calendar.monthcalendar(agora.year, agora.month)):
-            for col, dia in enumerate(semana):
-                if dia == 0:
-                    lbl = Gtk.Label(label="")
-                else:
-                    lbl = Gtk.Label(label=str(dia))
-                    lbl.get_style_context().add_class("calHoje" if dia == hoje else "calDia")
-                self._cal_grid.attach(lbl, col, row + 1, 1, 1)
-
-        self._cal_grid.show_all()
 
     # ── Helpers de UI ─────────────────────────────────────────────────────
 
@@ -1681,7 +1514,7 @@ class WidgetDesktop(Gtk.Window):
                     Gtk.ColorButton,
                     Gtk.Scale,
                     Gtk.SpinButton,
-                    _BotaoMedia,
+                    BotaoMedia,
                     _BotaoEngrenagem,
                 ),
             ):
@@ -1776,7 +1609,7 @@ class WidgetDesktop(Gtk.Window):
         self._mover_para(x, y)
 
     def _menu_sair(self, _item):
-        self._espectro.stop()
+        self._plugin_espectro.parar()
         Gtk.main_quit()
 
     def _durante_arrasto(self, widget, event):
@@ -1841,9 +1674,7 @@ class WidgetDesktop(Gtk.Window):
     # ── Visualizador de espectro ──────────────────────────────────────────
 
     def _tick_espectro(self):
-        if MOSTRAR_ESPECTRO and self.espectro_area.get_visible():
-            self.espectro_area.set_levels(self._espectro.get_bars())
-        return True
+        return self._plugin_espectro.tick()
 
     # ── Loop de atualização ───────────────────────────────────────────────
 
@@ -1857,8 +1688,8 @@ class WidgetDesktop(Gtk.Window):
             lambda: threading.Thread(target=self._bg_clima, daemon=True).start() or True,
         )
 
-        self._tick_spotify()
-        GLib.timeout_add_seconds(ATUALIZAR_SPOTIFY_SEG, self._tick_spotify)
+        self._plugin_midia.tick()
+        GLib.timeout_add_seconds(ATUALIZAR_SPOTIFY_SEG, self._plugin_midia.tick)
         GLib.timeout_add(100, self._tick_espectro)
         GLib.timeout_add_seconds(max(1, int(VERIFICAR_ARQUIVOS_SEG)), self._verificar_arquivos)
         # Memoriza wallpaper atual; se auto estiver ligado, reage a mudanças
@@ -1973,7 +1804,7 @@ class WidgetDesktop(Gtk.Window):
         self._restart_id = 0
         log.warning("reiniciando Pop Spot para aplicar o código novo")
         try:
-            self._espectro.stop()
+            self._plugin_espectro.parar()
         except Exception:
             pass
         raiz = Path(__file__).resolve().parent
@@ -1989,167 +1820,10 @@ class WidgetDesktop(Gtk.Window):
     # ── Relógio ───────────────────────────────────────────────────────────
 
     def _tick_relogio(self):
-        agora = datetime.datetime.now()
-        self.lbl_hora.set_text(agora.strftime("%H"))
-        self.lbl_minuto.set_text(agora.strftime("%M"))
-        self.lbl_diasem.set_text(t(f"weekday_{agora.weekday()}").upper())
-        self.lbl_data.set_text(f"{agora.day:02d} / {t(f'month_{agora.month}').upper()} / {agora.year}")
-
-        seg = agora.hour * 3600 + agora.minute * 60 + agora.second
-        prog = seg / 86400
-        self.lbl_prog_pct.set_text(f"{int(prog * 100)}%")
-        self.barra_dia.set_fraction(prog)
-
-        if agora.day != self._cal_dia:
-            self._cal_dia = agora.day
-            self._atualizar_calendario()
-
+        self._plugin_relogio.on_update()
         return True
 
     # ── Clima ─────────────────────────────────────────────────────────────
 
     def _bg_clima(self):
-        dados = mod_clima.buscar()
-        GLib.idle_add(self._aplicar_clima, dados)
-
-    def _atualizar_icone_clima(self, codigo):
-        """Desenha ícone vetorial do clima (estilo README, sem emoji)."""
-        try:
-            if codigo is None:
-                from weather_icons import SOL, renderizar
-
-                pb = renderizar(SOL, tamanho=_px(36), cor=COR_TEXTO)
-            else:
-                pb = mod_clima.icone_pixbuf(int(codigo), tamanho=_px(36), cor=COR_TEXTO)
-            self.img_icone_clima.set_from_pixbuf(pb)
-            self._codigo_clima_atual = codigo
-        except Exception as e:
-            log.warning("ícone clima: %s", e)
-
-    def _atualizar_previsao(self, previsao):
-        for i, (lbl_dia, img, lbl_temp) in enumerate(self._previsao_widgets):
-            if i < len(previsao):
-                d = previsao[i]
-                lbl_dia.set_text(str(d.get("dia", "")).upper())
-                try:
-                    img.set_from_pixbuf(
-                        mod_clima.icone_pixbuf(
-                            int(d.get("codigo", 113)), tamanho=_px(20), cor=COR_TEXTO_SECUNDARIO
-                        )
-                    )
-                except Exception as e:
-                    log.debug("ícone previsão: %s", e)
-                lbl_temp.set_text(f"{d.get('max_c', '--')}° / {d.get('min_c', '--')}°")
-            else:
-                lbl_dia.set_text("")
-                img.clear()
-                lbl_temp.set_text("")
-
-    def _aplicar_clima(self, dados):
-        if dados:
-            self._atualizar_icone_clima(dados["codigo"])
-            if UNIDADE_TEMPERATURA.strip().upper() in ("°F", "F"):
-                temp = dados.get("temp_f")
-                if temp is None:
-                    temp = round(int(dados["temp"]) * 9 / 5 + 32)
-                unidade = "°F"
-            else:
-                temp = dados.get("temp_c", dados["temp"])
-                unidade = "°C"
-            self.lbl_temperatura.set_text(f"  {temp}{unidade}")
-            self.lbl_cidade.set_text(dados["cidade"])
-            self.lbl_descricao.set_text(dados["descricao"])
-            self.lbl_detalhe.set_text(t("wind_hum", vento=dados["vento_ms"], umidade=dados["umidade"]))
-            self._atualizar_previsao(dados.get("previsao") or [])
-            if NOTIFICAR_CHUVA_FORTE and not dados.get("cache"):
-                try:
-                    mod_clima.notificar_chuva_forte(dados)
-                except Exception as e:
-                    log.debug("notificar chuva: %s", e)
-        else:
-            self.lbl_cidade.set_text(t("offline"))
-            self.lbl_descricao.set_text("")
-            self.lbl_detalhe.set_text("")
-        GLib.idle_add(self._medir_altura_natural)
-        return False
-
-    # ── Spotify ───────────────────────────────────────────────────────────
-
-    def _tick_spotify(self):
-        if self._spotify_ocupado:
-            return True
-        self._spotify_ocupado = True
-        threading.Thread(target=self._bg_spotify, daemon=True).start()
-        return True
-
-    def _bg_spotify(self):
-        try:
-            dados = mod_spotify.buscar_faixa()
-            GLib.idle_add(self._aplicar_spotify, dados)
-        finally:
-            self._spotify_ocupado = False
-
-    def _spotify_refresh_once(self):
-        self._tick_spotify()
-        return False
-
-    def _on_spotify_prev(self, _widget):
-        if mod_spotify.comando("Previous"):
-            GLib.timeout_add(200, self._spotify_refresh_once)
-
-    def _on_spotify_next(self, _widget):
-        if mod_spotify.comando("Next"):
-            GLib.timeout_add(200, self._spotify_refresh_once)
-
-    def _on_spotify_play_pause(self, _widget):
-        if mod_spotify.comando("PlayPause"):
-            GLib.timeout_add(200, self._spotify_refresh_once)
-
-    def _on_volume_changed(self, scale):
-        if self._volume_syncing:
-            return
-        vol = scale.get_value() / 100.0
-        threading.Thread(target=mod_spotify.definir_volume, args=(vol,), daemon=True).start()
-
-    def _aplicar_spotify(self, dados):
-        tocando = dados and dados["status"] in ("Playing", "Running")
-        pausado = dados and dados["status"] == "Paused"
-
-        spotify_aberto = bool(dados)
-        for b in (self.btn_spotify_prev, self.btn_spotify_play, self.btn_spotify_next):
-            b.set_habilitado(spotify_aberto)
-        self.scale_volume.set_sensitive(spotify_aberto and dados.get("volume") is not None)
-        if dados and dados.get("volume") is not None:
-            self._volume_syncing = True
-            try:
-                self.scale_volume.set_value(max(0.0, min(100.0, float(dados["volume"]) * 100)))
-            finally:
-                self._volume_syncing = False
-        if dados:
-            self.btn_spotify_play.set_tipo("pause" if tocando else "play")
-            self.btn_spotify_play.set_tooltip_text(t("pause") if tocando else t("play"))
-
-        self.lbl_sem_musica.set_visible(not spotify_aberto)
-        self.lbl_cabecalho_spotify.set_text((t("paused") if pausado else t("playing")) if dados else "")
-
-        if tocando or pausado:
-            prefixo = PREFIXO_PAUSADO if pausado else ""
-            self.lbl_titulo.set_text(prefixo + dados["titulo"])
-            self.lbl_artista.set_text(dados["artista"])
-            self.lbl_album.set_text(dados["album"])
-            capa = dados["capa"]
-            if capa and capa != self._url_capa_atual:
-                self._url_capa_atual = capa
-                threading.Thread(target=self._bg_capa, args=(capa,), daemon=True).start()
-        # Quando Spotify está fechado (dados is None), mantém capa e textos da
-        # última música — não limpa nada, o usuário vê a última faixa ouvida.
-        return False
-
-    def _bg_capa(self, url):
-        pb = mod_spotify.carregar_capa(url, _px(TAMANHO_CAPA))
-        GLib.idle_add(self._aplicar_capa, pb)
-
-    def _aplicar_capa(self, pb):
-        if pb:
-            self.img_capa.set_from_pixbuf(pb)
-        return False
+        self._plugin_clima.buscar()

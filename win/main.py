@@ -92,7 +92,11 @@ def main():
         pass
     app = QApplication(sys.argv)
     app.setApplicationName("Pop Spot")
-    app.setQuitOnLastWindowClosed(True)
+    # A janela principal é Qt.WindowType.Tool, que o Qt não conta como "janela
+    # normal" pra esse recurso — fechar qualquer diálogo modal (cor, nome de
+    # preset etc.) seria visto como fechar a "última janela" e encerraria o
+    # app inteiro. Sair é sempre explícito (menu "Sair" / _sair()).
+    app.setQuitOnLastWindowClosed(False)
     app._pop_spot_lock = _uma_instancia()
     win = WidgetWindows()
     win.show()

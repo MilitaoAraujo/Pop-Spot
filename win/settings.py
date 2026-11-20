@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -39,6 +40,7 @@ from config import (
     COR_TEXTO_TERCIARIO,
     PRESETS,
     VERSAO,
+    presets_usuario,
 )
 from config.i18n import idioma, t
 from win.scale import px
@@ -304,19 +306,16 @@ class PaginaConfig(QWidget):
         v.addWidget(self.lbl_cores)
         self.lbl_tema = self._lbl("labelConfig", t("quick_theme"))
         v.addWidget(self.lbl_tema)
-        nomes = list(PRESETS)
-        for i in range(0, len(nomes), 2):
-            linha_p = QHBoxLayout()
-            linha_p.setSpacing(px(8))
-            for nome in nomes[i : i + 2]:
-                b = QPushButton(t(_PRESET_I18N.get(nome, nome)))
-                b.setObjectName("btnConfigSec")
-                b.setMinimumHeight(px(30))
-                b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-                b.clicked.connect(lambda _=False, n=nome: self._aplicar_preset(n))
-                linha_p.addWidget(b)
-                self._preset_btns.append((b, nome))
-            v.addLayout(linha_p)
+        self._presets_layout = QVBoxLayout()
+        self._presets_layout.setSpacing(px(8))
+        v.addLayout(self._presets_layout)
+        self._construir_presets()
+
+        self.btn_salvar_preset = QPushButton(t("save_preset"))
+        self.btn_salvar_preset.setObjectName("btnConfigSec")
+        self.btn_salvar_preset.setMinimumHeight(px(30))
+        self.btn_salvar_preset.clicked.connect(self._on_salvar_preset)
+        v.addWidget(self.btn_salvar_preset)
 
         self.btn_wall = QPushButton(t("adapt_wallpaper"))
         self.btn_wall.setObjectName("btnConfig")
@@ -569,10 +568,65 @@ class PaginaConfig(QWidget):
         self.entry_cidade.blockSignals(False)
         self.lista_cidades.hide()
 
+    def _construir_presets(self) -> None:
+        while self._presets_layout.count():
+            item = self._presets_layout.takeAt(0)
+            linha = item.layout()
+            if linha is not None:
+                while linha.count():
+                    w = linha.takeAt(0).widget()
+                    if w is not None:
+                        w.deleteLater()
+                linha.deleteLater()
+
+        self._preset_btns = []
+        personalizados = presets_usuario.carregar()
+        nomes = list(PRESETS) + list(personalizados)
+        for i in range(0, len(nomes), 2):
+            linha_p = QHBoxLayout()
+            linha_p.setSpacing(px(8))
+            for nome in nomes[i : i + 2]:
+                b = QPushButton(t(_PRESET_I18N.get(nome, nome)) if nome in PRESETS else nome)
+                b.setObjectName("btnConfigSec")
+                b.setMinimumHeight(px(30))
+                b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+                b.clicked.connect(lambda _=False, n=nome: self._aplicar_preset(n))
+                linha_p.addWidget(b, 1)
+                self._preset_btns.append((b, nome))
+                if nome in personalizados:
+                    btn_x = QPushButton("×")
+                    btn_x.setObjectName("btnConfigSec")
+                    btn_x.setFixedWidth(px(28))
+                    btn_x.setMinimumHeight(px(30))
+                    btn_x.setToolTip(t("remove_preset_tip"))
+                    btn_x.clicked.connect(lambda _=False, n=nome: self._remover_preset(n))
+                    linha_p.addWidget(btn_x, 0)
+            self._presets_layout.addLayout(linha_p)
+
     def _aplicar_preset(self, nome: str) -> None:
-        preset = PRESETS.get(nome) or {}
+        preset = PRESETS.get(nome) or presets_usuario.carregar().get(nome) or {}
         self._preencher_cores(preset)
         self.lbl_status.setText(t("theme_applied", name=nome))
+
+    def _remover_preset(self, nome: str) -> None:
+        presets_usuario.remover(nome)
+        self._construir_presets()
+
+    def _on_salvar_preset(self) -> None:
+        nome, ok = QInputDialog.getText(self, t("save_preset_title"), t("save_preset_prompt"))
+        nome = (nome or "").strip()
+        if not ok or not nome:
+            return
+        cores = {}
+        for chave, _ch, _p in _CORES:
+            hex_cor = self._cores_ui[chave][0].text().strip()
+            if not re.fullmatch(r"#[0-9A-Fa-f]{6}", hex_cor, flags=re.I):
+                hex_cor = "#ffffff"
+            cores[chave] = hex_cor.lower()
+        cores["OPACIDADE_FUNDO"] = round(self.scale_opacidade.value() / 100.0, 2)
+        presets_usuario.salvar(nome, cores)
+        self._construir_presets()
+        self.lbl_status.setText(t("preset_saved", name=nome))
 
     def _preencher_cores(self, cores: dict) -> None:
         if "OPACIDADE_FUNDO" in cores:
@@ -726,3 +780,14 @@ class PaginaConfig(QWidget):
         importlib.reload(config.themes)
         importlib.reload(config.i18n)
         importlib.reload(config)
+
+        # Alguns módulos importam constantes do config com "from config import X" no
+        # topo do arquivo (snapshot fixo) em vez de ler ao vivo — atualiza esses nomes
+        # pra refletir o que acabou de ser salvo, sem precisar reiniciar o app.
+        import win.settings as mod_set
+        import win.window as mod_win
+
+        for modulo in (mod_set, mod_win):
+            for k in dir(config):
+                if k.isupper() and hasattr(modulo, k):
+                    setattr(modulo, k, getattr(config, k))

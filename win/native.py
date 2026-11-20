@@ -64,6 +64,28 @@ def aplicar_como_widget(janela) -> None:
             pass
 
 
+def permitir_foco(janela, permitir: bool) -> None:
+    """Liga/desliga WS_EX_NOACTIVATE em tempo real.
+
+    A janela nunca ativa (não rouba foco de outros apps), o que também impede
+    campos de texto de receberem foco de teclado. Chame com permitir=True
+    enquanto a tela de configurações estiver visível, e False ao voltar.
+    """
+    if sys.platform != "win32":
+        return
+    hwnd = int(janela.winId())
+    if not hwnd:
+        return
+    import ctypes
+
+    user32 = ctypes.windll.user32
+    gwl_exstyle = -20
+    ws_ex_noactivate = 0x08000000
+    ex = user32.GetWindowLongW(hwnd, gwl_exstyle)
+    ex = (ex & ~ws_ex_noactivate) if permitir else (ex | ws_ex_noactivate)
+    user32.SetWindowLongW(hwnd, gwl_exstyle, ex)
+
+
 def _aplicar_hwnd(hwnd: int) -> None:
     if not hwnd:
         return

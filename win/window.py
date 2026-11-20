@@ -2,25 +2,20 @@
 
 from __future__ import annotations
 
-import calendar
-import datetime
 import logging
 import threading
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
+from PySide6.QtCore import QPoint, Qt, QTimer, Signal
+from PySide6.QtGui import QAction, QColor, QPainter
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QMenu,
-    QProgressBar,
     QPushButton,
     QSizePolicy,
-    QSlider,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -28,7 +23,6 @@ from PySide6.QtWidgets import (
 
 from config import (
     COR_BASE,
-    COR_TEXTO_APAGADO,
     LADO,
     LARGURA,
     MARGEM_DIREITA,
@@ -36,13 +30,14 @@ from config import (
     POS_X,
     POS_Y,
     RAIO_BORDA,
-    TAMANHO_CAPA,
     VERSAO,
 )
 from config.i18n import t
-from spectrum import N_BARS, AudioSpectrum
-from win.icons import pix_clima, pix_media, pix_nota
-from win.native import aplicar_como_widget
+from plugins.clima_qt import ClimaPlugin
+from plugins.espectro_qt import EspectroPlugin
+from plugins.midia_qt import MidiaPlugin
+from plugins.relogio_qt import RelogioPlugin
+from win.native import aplicar_como_widget, permitir_foco
 from win.scale import px
 from win.settings import PaginaConfig
 from win.style import gerar_qss
@@ -65,40 +60,6 @@ class _Painel(QWidget):
         p.setPen(Qt.PenStyle.NoPen)
         r = px(RAIO_BORDA)
         p.drawRoundedRect(self.rect(), r, r)
-
-
-class _EspectroBarras(QWidget):
-    def __init__(self, n: int = N_BARS, altura: int = 55, largura: int = 95):
-        super().__init__()
-        self._n = n
-        self._levels = [0.0] * n
-        self.definir_tamanho(largura, altura)
-
-    def definir_tamanho(self, largura: int, altura: int):
-        self._altura = max(8, int(altura))
-        self.setFixedSize(max(20, int(largura)), self._altura)
-
-    def set_levels(self, levels):
-        self._levels = [max(0.0, min(1.0, float(v))) for v in (levels or [])]
-        while len(self._levels) < self._n:
-            self._levels.append(0.0)
-        self.update()
-
-    def paintEvent(self, event):
-        from config import COR_DESTAQUE
-
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(COR_DESTAQUE))
-        n = self._n
-        w, h = self.width(), self.height()
-        gap = 2
-        bw = max(2, int((w - gap * (n - 1)) / n))
-        for i, v in enumerate(self._levels[:n]):
-            bh = max(2, int(h * v))
-            x = i * (bw + gap)
-            p.drawRoundedRect(x, h - bh, bw, bh, 1, 1)
 
 
 class _Stack(QStackedWidget):
@@ -125,13 +86,9 @@ class WidgetWindows(QWidget):
         self._pos_manual = False
         self._arrastando = False
         self._drag_off = QPoint()
-        self._url_capa = None
-        self._spotify_ocupado = False
-        self._volume_sync = False
         self._slider_ativo = None
-        self._cal_dia = -1
         self._previsao_widgets: list[tuple[QLabel, QLabel, QLabel]] = []
-        self._espectro = AudioSpectrum()
+        self._plugin_espectro = EspectroPlugin()
         self._wall_sig = None
 
         if janela_nativa:
@@ -228,191 +185,50 @@ class WidgetWindows(QWidget):
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(0)
 
-        relogio_linha = QHBoxLayout()
-        relogio_linha.setSpacing(px(12))
-        relogio_linha.setAlignment(Qt.AlignmentFlag.AlignTop)
-        caixa_clock = QVBoxLayout()
-        caixa_clock.setSpacing(0)
-        self.lbl_hora = self._rotulo("hora", "00")
-        self.lbl_minuto = self._rotulo("minuto", "00")
-        self.lbl_diasem = self._rotulo("diaSemana")
-        self.lbl_data = self._rotulo("dataCompleta")
-        for w in (self.lbl_hora, self.lbl_minuto, self.lbl_diasem, self.lbl_data):
-            caixa_clock.addWidget(w)
-        relogio_linha.addLayout(caixa_clock, 1)
-        relogio_linha.addWidget(self._painel_dir())
-        col.addLayout(relogio_linha)
+        self._plugin_relogio = RelogioPlugin()
+        relogio_widget = self._plugin_relogio.montar(self)
+        self.lbl_hora = self._plugin_relogio.lbl_hora
+        self.lbl_minuto = self._plugin_relogio.lbl_minuto
+        self.lbl_diasem = self._plugin_relogio.lbl_diasem
+        self.lbl_data = self._plugin_relogio.lbl_data
+        self.lbl_prog_dia = self._plugin_relogio.lbl_prog_dia
+        self.lbl_prog_pct = self._plugin_relogio.lbl_prog_pct
+        self.barra_dia = self._plugin_relogio.barra_dia
+        self._cal_grid_host = self._plugin_relogio.cal_grid_host
+        self._cal_grid = self._plugin_relogio.cal_grid
+        self._painel_dir_w = self._plugin_relogio.painel_dir_w
+        col.addWidget(relogio_widget)
         col.addWidget(self._sep())
 
-        linha_temp = QHBoxLayout()
-        linha_temp.setSpacing(px(6))
-        self.img_icone_clima = QLabel()
-        self.img_icone_clima.setFixedSize(px(36), px(36))
-        self._codigo_clima_atual = None
-        self._spotify_tocando = False
-        self._atualizar_icone_clima(None)
-        self.lbl_temperatura = self._rotulo("temperaturaClima", "--°C")
-        linha_temp.addWidget(self.img_icone_clima, 0, Qt.AlignmentFlag.AlignVCenter)
-        linha_temp.addWidget(self.lbl_temperatura, 0, Qt.AlignmentFlag.AlignVCenter)
-        linha_temp.addStretch(1)
-        col.addLayout(linha_temp)
-        self.lbl_cidade = self._rotulo("cidadeClima", "--")
-        self.lbl_descricao = self._rotulo("descricaoClima", t("seeking_weather"))
-        self.lbl_detalhe = self._rotulo("detalheClima")
-        col.addWidget(self.lbl_cidade)
-        col.addWidget(self.lbl_descricao)
-        col.addWidget(self.lbl_detalhe)
-        col.addSpacing(px(6))
-        self._caixa_previsao = self._construir_previsao()
-        col.addWidget(self._caixa_previsao)
+        self._plugin_clima = ClimaPlugin()
+        clima_widget = self._plugin_clima.montar(self)
+        self.img_icone_clima = self._plugin_clima.img_icone
+        self.lbl_temperatura = self._plugin_clima.lbl_temperatura
+        self.lbl_cidade = self._plugin_clima.lbl_cidade
+        self.lbl_descricao = self._plugin_clima.lbl_descricao
+        self.lbl_detalhe = self._plugin_clima.lbl_detalhe
+        self._previsao_widgets = self._plugin_clima.previsao_widgets
+        self._caixa_previsao = self._plugin_clima.caixa_previsao
+        col.addWidget(clima_widget)
         col.addWidget(self._sep())
 
-        self._caixa_spotify = QWidget()
-        sp = QVBoxLayout(self._caixa_spotify)
-        sp.setContentsMargins(0, 0, 0, 0)
-        sp.setSpacing(0)
-        self.lbl_cabecalho_spotify = self._rotulo("cabecalhoSpotify", t("playing"))
-        cab = QHBoxLayout()
-        cab.setSpacing(px(5))
-        self.img_nota_spotify = QLabel()
-        self.img_nota_spotify.setFixedSize(px(16), px(16))
-        self._atualizar_nota_spotify()
-        cab.addWidget(self.img_nota_spotify, 0, Qt.AlignmentFlag.AlignVCenter)
-        cab.addWidget(self.lbl_cabecalho_spotify, 0, Qt.AlignmentFlag.AlignVCenter)
-        cab.addStretch(1)
-        sp.addLayout(cab)
-        self.btn_capa = QPushButton()
-        self.btn_capa.setObjectName("btnCapa")
-        self.btn_capa.setFixedSize(px(TAMANHO_CAPA), px(TAMANHO_CAPA))
-        self.btn_capa.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_capa.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.btn_capa.clicked.connect(self._abrir_spotify)
-        sp.addSpacing(px(8))
-        sp.addWidget(self.btn_capa, 0, Qt.AlignmentFlag.AlignLeft)
-        ctrl = QHBoxLayout()
-        ctrl.setSpacing(px(4))
-        ctrl.setContentsMargins(0, 0, 0, 0)
-        self.btn_spotify_prev = QPushButton()
-        self.btn_spotify_play = QPushButton()
-        self.btn_spotify_next = QPushButton()
-        for b, tip, tipo in (
-            (self.btn_spotify_prev, t("prev_track"), "prev"),
-            (self.btn_spotify_play, t("play"), "play"),
-            (self.btn_spotify_next, t("next_track"), "next"),
-        ):
-            b.setObjectName("btnSpotify")
-            b.setToolTip(tip)
-            b.setEnabled(False)
-            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            b.setMaximumWidth(px(52))
-            b.setIconSize(QSize(px(15), px(15)))
-            self._definir_icone_media(b, tipo)
-            ctrl.addWidget(b, 0)
-        self.btn_spotify_prev.clicked.connect(lambda: self._spotify_cmd("Previous"))
-        self.btn_spotify_play.clicked.connect(self._spotify_play_pause)
-        self.btn_spotify_next.clicked.connect(lambda: self._spotify_cmd("Next"))
-        self.scale_volume = QSlider(Qt.Orientation.Horizontal)
-        self.scale_volume.setObjectName("scaleVolume")
-        self.scale_volume.setRange(0, 100)
-        self.scale_volume.setMinimumHeight(px(28))
-        self.scale_volume.setMinimumWidth(px(64))
-        self.scale_volume.setEnabled(False)
-        self.scale_volume.setToolTip(t("volume"))
-        self.scale_volume.valueChanged.connect(self._on_volume)
-        ctrl.addWidget(self.scale_volume, 1)
-        sp.addSpacing(px(8))
-        sp.addLayout(ctrl)
-        self.lbl_titulo = self._rotulo("tituloMusica")
-        self.lbl_artista = self._rotulo("artistaMusica")
-        self.lbl_album = self._rotulo("albumMusica")
-        self.lbl_sem_musica = self._rotulo("semMusica", t("no_spotify"))
-        self.img_status_musica = QLabel()
-        self.img_status_musica.setObjectName("statusMusica")
-        self.img_status_musica.setFixedSize(px(13), px(13))
-        self.img_status_musica.hide()
-        caixa_info = QVBoxLayout()
-        caixa_info.setContentsMargins(0, 0, 0, 0)
-        caixa_info.setSpacing(0)
-        caixa_info.addSpacing(px(12))
-        linha_titulo = QHBoxLayout()
-        linha_titulo.setContentsMargins(0, 0, 0, 0)
-        linha_titulo.setSpacing(px(5))
-        linha_titulo.addWidget(self.img_status_musica, 0, Qt.AlignmentFlag.AlignVCenter)
-        linha_titulo.addWidget(self.lbl_titulo, 1, Qt.AlignmentFlag.AlignVCenter)
-        caixa_info.addLayout(linha_titulo)
-        caixa_info.addWidget(self.lbl_artista)
-        caixa_info.addWidget(self.lbl_album)
-        linha_musica = QHBoxLayout()
-        linha_musica.setSpacing(px(10))
-        linha_musica.addLayout(caixa_info, 1)
-        self.espectro_area = _EspectroBarras(altura=px(55), largura=px(95))
-        linha_musica.addWidget(self.espectro_area, 0, Qt.AlignmentFlag.AlignVCenter)
-        sp.addLayout(linha_musica)
-        sp.addWidget(self.lbl_sem_musica)
+        self.espectro_area = self._plugin_espectro.montar(self)
+        self._plugin_midia = MidiaPlugin()
+        self._caixa_spotify = self._plugin_midia.montar(self)
+        self.lbl_cabecalho_spotify = self._plugin_midia.lbl_cabecalho
+        self.img_nota_spotify = self._plugin_midia.img_nota
+        self.btn_capa = self._plugin_midia.btn_capa
+        self.btn_spotify_prev = self._plugin_midia.btn_prev
+        self.btn_spotify_play = self._plugin_midia.btn_play
+        self.btn_spotify_next = self._plugin_midia.btn_next
+        self.scale_volume = self._plugin_midia.scale_volume
+        self.lbl_titulo = self._plugin_midia.lbl_titulo
+        self.lbl_artista = self._plugin_midia.lbl_artista
+        self.lbl_album = self._plugin_midia.lbl_album
+        self.lbl_sem_musica = self._plugin_midia.lbl_sem_musica
+        self.img_status_musica = self._plugin_midia.img_status
         col.addWidget(self._caixa_spotify)
         return pagina
-
-    def _construir_previsao(self) -> QWidget:
-        caixa = QWidget()
-        linha = QHBoxLayout(caixa)
-        linha.setContentsMargins(0, 0, 0, 0)
-        linha.setSpacing(px(10))
-        self._previsao_widgets = []
-        for _ in range(3):
-            col = QVBoxLayout()
-            col.setSpacing(px(2))
-            lbl_dia = self._rotulo("previsaoDia")
-            img = QLabel()
-            img.setFixedSize(px(20), px(20))
-            lbl_temp = self._rotulo("previsaoTemp")
-            col.addWidget(lbl_dia)
-            col.addWidget(img)
-            col.addWidget(lbl_temp)
-            w = QWidget()
-            w.setLayout(col)
-            linha.addWidget(w, 1)
-            self._previsao_widgets.append((lbl_dia, img, lbl_temp))
-        return caixa
-
-    def _painel_dir(self) -> QWidget:
-        painel = QWidget()
-        painel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
-        painel.setMinimumWidth(px(148))
-        v = QVBoxLayout(painel)
-        v.setContentsMargins(0, 0, 0, 0)
-        v.setSpacing(px(6))
-        v.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
-
-        linha = QHBoxLayout()
-        linha.setSpacing(px(6))
-        linha.setContentsMargins(0, 0, 0, 0)
-        self.lbl_prog_dia = self._rotulo("progLabel", t("day_progress"), Qt.AlignmentFlag.AlignRight)
-        self.lbl_prog_pct = self._rotulo("progPct", "0%", Qt.AlignmentFlag.AlignRight)
-        for w in (self.lbl_prog_dia, self.lbl_prog_pct):
-            w.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
-        linha.addWidget(self.lbl_prog_dia)
-        linha.addWidget(self.lbl_prog_pct)
-        v.addLayout(linha)
-
-        self.barra_dia = QProgressBar()
-        self.barra_dia.setObjectName("barDia")
-        self.barra_dia.setRange(0, 1000)
-        self.barra_dia.setValue(0)
-        self.barra_dia.setTextVisible(False)
-        v.addWidget(self.barra_dia)
-
-        self._cal_grid_host = QWidget()
-        self._cal_grid = QGridLayout(self._cal_grid_host)
-        self._cal_grid.setContentsMargins(0, px(4), 0, 0)
-        self._cal_grid.setHorizontalSpacing(px(6))
-        self._cal_grid.setVerticalSpacing(px(5))
-        for col in range(7):
-            self._cal_grid.setColumnStretch(col, 1)
-            self._cal_grid.setColumnMinimumWidth(col, px(20))
-        v.addWidget(self._cal_grid_host)
-        self._painel_dir_w = painel
-        self._atualizar_calendario()
-        return painel
 
     def _aplicar_visibilidade(self):
         import config as cfg
@@ -425,13 +241,7 @@ class WidgetWindows(QWidget):
         self._painel_dir_w.setVisible(cal)
         self._caixa_spotify.setVisible(bool(getattr(cfg, "MOSTRAR_SPOTIFY", True)))
         self._caixa_previsao.setVisible(bool(getattr(cfg, "MOSTRAR_PREVISAO", True)))
-        espectro_on = bool(getattr(cfg, "MOSTRAR_ESPECTRO", True))
-        self.espectro_area.setVisible(espectro_on)
-        if espectro_on:
-            self._espectro.start()
-        else:
-            self._espectro.stop()
-            self.espectro_area.set_levels([0.0] * N_BARS)
+        self._plugin_espectro.aplicar_visibilidade()
 
     def _largura_janela(self) -> int:
         # Qt precisa de mais largura que o GTK (calendário + “Progresso do dia”).
@@ -456,16 +266,33 @@ class WidgetWindows(QWidget):
     def _toggle_config(self):
         if self._stack.currentIndex() == 1:
             self._stack.setCurrentIndex(0)
+            self._permitir_digitar(False)
         else:
             self._pagina_cfg.carregar_valores()
             self._stack.setCurrentIndex(1)
+            self._permitir_digitar(True)
         self._ajustar_pagina()
+
+    def _permitir_digitar(self, aceitar: bool) -> None:
+        """Liga/desliga o foco de teclado da janela.
+
+        Por padrão a janela não aceita foco pra nunca roubar do app ativo
+        (WindowDoesNotAcceptFocus + WS_EX_NOACTIVATE no Windows) — mas isso
+        também bloqueia campos de texto. O Qt guarda esse estado na própria
+        flag da janela (não só no estilo nativo do Windows), então mudar só o
+        bit do Windows não basta: precisa trocar a flag do Qt e remostrar.
+        """
+        self.setWindowFlag(Qt.WindowType.WindowDoesNotAcceptFocus, not aceitar)
+        if self._janela_nativa:
+            self.show()
+        permitir_foco(self, aceitar)
 
     def _apos_salvar(self):
         self.setStyleSheet(gerar_qss())
         self._repintar_icones_tema()
         self._aplicar_visibilidade()
         self._ajustar_pagina()
+        self.update()
         self._watch_mtimes = self._mtime_arquivos()
         try:
             import weather as mod_clima
@@ -566,12 +393,18 @@ class WidgetWindows(QWidget):
         from win.settings import PaginaConfig
 
         PaginaConfig._recarregar_modulos()
+        import plugins.clima_qt as mod_clima_plugin
+        import plugins.midia_qt as mod_midia_plugin
+        import plugins.relogio_qt as mod_relogio
         import win.settings as mod_set
         import win.window as mod_win
         from config.i18n import t as t_now
 
         mod_set.t = t_now
         mod_win.t = t_now
+        mod_relogio.t = t_now
+        mod_clima_plugin.t = t_now
+        mod_midia_plugin.t = t_now
         self.setStyleSheet(gerar_qss())
         self._repintar_icones_tema()
         self._aplicar_visibilidade()
@@ -588,17 +421,14 @@ class WidgetWindows(QWidget):
         import sys
 
         try:
-            self._espectro.stop()
+            self._plugin_espectro.parar()
         except Exception:
             pass
         os.chdir(_RAIZ)
         os.execv(sys.executable, [sys.executable, str(_RAIZ / "main.py")])
 
     def _tick_espectro(self):
-        import config as cfg
-
-        if getattr(cfg, "MOSTRAR_ESPECTRO", True):
-            self.espectro_area.set_levels(self._espectro.get_bars())
+        self._plugin_espectro.tick()
 
     def _verificar_wallpaper(self):
         import config as cfg
@@ -651,262 +481,32 @@ class WidgetWindows(QWidget):
         except Exception as e:
             log.warning("auto wallpaper: %s", e)
 
-    def _atualizar_nota_spotify(self):
-        from config import COR_DESTAQUE
-
-        self.img_nota_spotify.setPixmap(pix_nota(px(16), COR_DESTAQUE))
-
-    def _atualizar_icone_clima(self, codigo):
-        from config import COR_TEXTO
-
-        try:
-            import weather as mod_clima
-
-            tipo = mod_clima.SOL if codigo is None else mod_clima.tipo_icone(int(codigo))
-        except Exception:
-            tipo = "sol"
-        self.img_icone_clima.setPixmap(pix_clima(tipo, px(36), COR_TEXTO))
-        self._codigo_clima_atual = codigo
-
     def _tick_relogio(self):
-        agora = datetime.datetime.now()
-        self.lbl_hora.setText(agora.strftime("%H"))
-        self.lbl_minuto.setText(agora.strftime("%M"))
-        self.lbl_diasem.setText(t(f"weekday_{agora.weekday()}").upper())
-        self.lbl_data.setText(f"{agora.day:02d} / {t(f'month_{agora.month}').upper()} / {agora.year}")
-        seg = agora.hour * 3600 + agora.minute * 60 + agora.second
-        prog = seg / 86400
-        self.lbl_prog_pct.setText(f"{int(prog * 100)}%")
-        self.barra_dia.setValue(int(prog * 1000))
-        if agora.day != self._cal_dia:
-            self._cal_dia = agora.day
-            self._atualizar_calendario()
-
-    def _atualizar_calendario(self):
-        while self._cal_grid.count():
-            item = self._cal_grid.takeAt(0)
-            w = item.widget()
-            if w is not None:
-                w.deleteLater()
-        agora = datetime.datetime.now()
-        hoje = agora.day
-        for col in range(7):
-            lbl = self._rotulo("calHdr", t(f"cal_{col}"), Qt.AlignmentFlag.AlignHCenter)
-            lbl.setMinimumWidth(px(20))
-            self._cal_grid.addWidget(lbl, 0, col)
-        for row, semana in enumerate(calendar.monthcalendar(agora.year, agora.month)):
-            for col, dia in enumerate(semana):
-                if dia == 0:
-                    lbl = self._rotulo("calDia", "")
-                else:
-                    nome = "calHoje" if dia == hoje else "calDia"
-                    lbl = self._rotulo(nome, str(dia), Qt.AlignmentFlag.AlignHCenter)
-                lbl.setMinimumWidth(px(20))
-                lbl.setMinimumHeight(px(16))
-                self._cal_grid.addWidget(lbl, row + 1, col)
-        self._cal_grid_host.updateGeometry()
-        if getattr(self, "_painel_dir_w", None) is not None:
-            self._painel_dir_w.updateGeometry()
+        self._plugin_relogio.on_update()
 
     def _buscar_clima(self):
         threading.Thread(target=self._bg_clima, daemon=True).start()
 
     def _bg_clima(self):
-        try:
-            import weather as mod_clima
-
-            dados = mod_clima.buscar()
-        except Exception as e:
-            log.warning("clima: %s", e)
-            dados = None
-        self.clima_pronto.emit(dados)
+        self._plugin_clima.buscar()
 
     def _aplicar_clima(self, dados):
-        import config as cfg
-
-        if not dados:
-            self.lbl_cidade.setText(t("offline"))
-            self.lbl_descricao.setText("")
-            self.lbl_detalhe.setText("")
-            return
-        unidade_cfg = str(getattr(cfg, "UNIDADE_TEMPERATURA", "°C")).strip().upper()
-        if unidade_cfg in ("°F", "F"):
-            temp = dados.get("temp_f")
-            if temp is None:
-                temp = round(int(dados["temp"]) * 9 / 5 + 32)
-            unidade = "°F"
-        else:
-            temp = dados.get("temp_c", dados["temp"])
-            unidade = "°C"
-        self._atualizar_icone_clima(dados.get("codigo"))
-        self.lbl_temperatura.setText(f"{temp}{unidade}")
-        self.lbl_cidade.setText(str(dados.get("cidade") or "--"))
-        self.lbl_descricao.setText(str(dados.get("descricao") or ""))
-        self.lbl_detalhe.setText(
-            t("wind_hum", vento=dados.get("vento_ms", "--"), umidade=dados.get("umidade", "--"))
-        )
-        previsao = dados.get("previsao") or []
-        import weather as mod_clima
-        from config import COR_TEXTO_SECUNDARIO
-
-        for i, (lbl_dia, img, lbl_temp) in enumerate(self._previsao_widgets):
-            if i < len(previsao):
-                d = previsao[i]
-                lbl_dia.setText(str(d.get("dia", "")).upper())
-                try:
-                    tipo = mod_clima.tipo_icone(int(d.get("codigo", 113)))
-                    img.setPixmap(pix_clima(tipo, px(20), COR_TEXTO_SECUNDARIO))
-                except Exception:
-                    img.clear()
-                lbl_temp.setText(f"{d.get('max_c', '--')}° / {d.get('min_c', '--')}°")
-            else:
-                lbl_dia.setText("")
-                img.clear()
-                lbl_temp.setText("")
-        if getattr(cfg, "NOTIFICAR_CHUVA_FORTE", True) and not dados.get("cache"):
-            try:
-                mod_clima.notificar_chuva_forte(dados)
-            except Exception as e:
-                log.debug("notificar chuva: %s", e)
+        self._plugin_clima.aplicar(dados)
 
     def _tick_spotify(self):
-        if self._spotify_ocupado:
-            return
-        self._spotify_ocupado = True
-        threading.Thread(target=self._bg_spotify, daemon=True).start()
+        self._plugin_midia.tick()
 
-    def _bg_spotify(self):
-        try:
-            import spotify as mod
+    def _aplicar_spotify(self, dados):
+        self._plugin_midia.aplicar(dados)
 
-            dados = mod.buscar_faixa()
-        except Exception as e:
-            log.debug("spotify: %s", e)
-            dados = None
-        self.spotify_pronto.emit(dados)
-
-    def _definir_icone_media(self, botao: QPushButton, tipo: str):
-        from config import COR_DESTAQUE
-
-        tamanho = px(15)
-        icone = QIcon()
-        icone.addPixmap(pix_media(tipo, tamanho, COR_DESTAQUE), QIcon.Mode.Normal)
-        icone.addPixmap(pix_media(tipo, tamanho, COR_TEXTO_APAGADO), QIcon.Mode.Disabled)
-        botao.setIcon(icone)
+    def _aplicar_capa(self, dados: bytes):
+        self._plugin_midia.aplicar_capa(dados)
 
     def _repintar_icones_tema(self):
         """Redesenha os ícones que têm a cor gravada num QPixmap (não seguem
         QSS sozinhos), pra reagir na hora a uma troca de tema/cor."""
-        self._definir_icone_media(self.btn_spotify_prev, "prev")
-        self._definir_icone_media(
-            self.btn_spotify_play, "pause" if getattr(self, "_spotify_tocando", False) else "play"
-        )
-        self._definir_icone_media(self.btn_spotify_next, "next")
-        if self.img_status_musica.isVisible():
-            from config import COR_DESTAQUE
-
-            self.img_status_musica.setPixmap(pix_media("pause", px(13), COR_DESTAQUE))
-        self._atualizar_nota_spotify()
-        self._atualizar_icone_clima(getattr(self, "_codigo_clima_atual", None))
-
-    def _aplicar_spotify(self, dados):
-        self._spotify_ocupado = False
-        ativo = bool(dados and dados.get("titulo"))
-        for b in (self.btn_spotify_prev, self.btn_spotify_play, self.btn_spotify_next):
-            b.setEnabled(ativo)
-        self.scale_volume.setEnabled(ativo and dados.get("volume") is not None)
-        if not ativo:
-            self.lbl_sem_musica.show()
-            self.lbl_titulo.hide()
-            self.lbl_artista.hide()
-            self.lbl_album.hide()
-            self.img_status_musica.hide()
-            self.lbl_cabecalho_spotify.setText(t("playing"))
-            self.btn_capa.setIcon(QIcon())
-            self._url_capa = None
-            return
-        self.lbl_sem_musica.hide()
-        self.lbl_titulo.show()
-        self.lbl_artista.show()
-        self.lbl_album.show()
-        tocando = str(dados.get("status") or "") == "Playing"
-        self._spotify_tocando = tocando
-        self.lbl_cabecalho_spotify.setText(t("playing") if tocando else t("paused"))
-        self._definir_icone_media(self.btn_spotify_play, "pause" if tocando else "play")
-        self.btn_spotify_play.setToolTip(t("pause") if tocando else t("play"))
-        if tocando:
-            self.img_status_musica.hide()
-        else:
-            from config import COR_DESTAQUE
-
-            self.img_status_musica.setPixmap(pix_media("pause", px(13), COR_DESTAQUE))
-            self.img_status_musica.show()
-        self.lbl_titulo.setText(str(dados.get("titulo") or ""))
-        self.lbl_artista.setText(str(dados.get("artista") or ""))
-        self.lbl_album.setText(str(dados.get("album") or ""))
-        vol = dados.get("volume")
-        if vol is not None and getattr(self, "_slider_ativo", None) is not self.scale_volume:
-            self._volume_sync = True
-            self.scale_volume.setValue(int(round(float(vol) * 100)))
-            self._volume_sync = False
-        capa = str(dados.get("capa") or "")
-        capa_bytes = dados.get("capa_bytes")
-        if capa and capa != self._url_capa:
-            self._url_capa = capa
-            if capa_bytes:
-                self.capa_pronta.emit(capa_bytes)
-            elif capa.startswith(("http://", "https://", "file://")):
-                threading.Thread(target=self._bg_capa, args=(capa,), daemon=True).start()
-            else:
-                # Windows (SMTC): "capa" é só uma chave de mudança de faixa,
-                # não uma URL — sem capa_bytes não há thumbnail pra mostrar.
-                self.btn_capa.setIcon(QIcon())
-
-    def _bg_capa(self, url: str):
-        try:
-            if url.startswith("file://"):
-                dados = Path(url[7:]).read_bytes()
-            else:
-                import requests
-
-                dados = requests.get(url, timeout=10).content
-            self.capa_pronta.emit(dados)
-        except Exception as e:
-            log.debug("capa: %s", e)
-
-    def _aplicar_capa(self, dados: bytes):
-        pm = QPixmap()
-        if not pm.loadFromData(dados):
-            return
-        lado = px(TAMANHO_CAPA)
-        self.btn_capa.setIcon(
-            QIcon(
-                pm.scaled(
-                    lado,
-                    lado,
-                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-            )
-        )
-        self.btn_capa.setIconSize(self.btn_capa.size())
-
-    def _spotify_cmd(self, metodo: str):
-        threading.Thread(target=lambda: __import__("spotify").comando(metodo), daemon=True).start()
-        QTimer.singleShot(300, self._tick_spotify)
-
-    def _spotify_play_pause(self):
-        metodo = "PlayPause"
-        self._spotify_cmd(metodo)
-
-    def _abrir_spotify(self):
-        threading.Thread(target=lambda: __import__("spotify").abrir(), daemon=True).start()
-
-    def _on_volume(self, valor: int):
-        if self._volume_sync:
-            return
-        v = max(0.0, min(1.0, valor / 100.0))
-        threading.Thread(target=lambda: __import__("spotify").definir_volume(v), daemon=True).start()
+        self._plugin_midia.on_theme_change(None)
+        self._plugin_clima.on_theme_change(None)
 
     def _geo_tela(self):
         screen = self.screen() or QApplication.primaryScreen()
@@ -1088,14 +688,18 @@ class WidgetWindows(QWidget):
 
     def _sair(self):
         try:
-            self._espectro.stop()
+            self._plugin_espectro.parar()
         except Exception:
             pass
         QApplication.quit()
 
     def closeEvent(self, event):
         try:
-            self._espectro.stop()
+            self._plugin_espectro.parar()
         except Exception:
             pass
         super().closeEvent(event)
+        # setQuitOnLastWindowClosed está desligado (ver win/main.py), então um
+        # fechamento real da janela principal (ex.: logoff do Windows) precisa
+        # encerrar o app explicitamente, senão ele vira um processo invisível.
+        QApplication.quit()
